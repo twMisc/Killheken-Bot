@@ -27,7 +27,7 @@ async def on_ready():
                                      name="我是帥哥誠"))
 
 
-@client.hybrid_command(name='dinner', description='問哲誠晚餐該吃啥')
+@client.hybrid_command(name='dinner', description='問帥哥誠晚餐該吃啥')
 async def dinner(ctx):
     food = random.choice(dinner_candidtes)
     await ctx.send(food)
