@@ -33,12 +33,12 @@ async def dinner(ctx):
     await ctx.send(food)
 
 
-@client.hybrid_command()
-@app_commands.guilds(MY_GUILD_ID)
-async def sync(ctx) -> None:
+@client.hybrid_command(name='sync',
+                       description='sync commands',
+                       guild=MY_GUILD_ID)
+async def sync(ctx):
     synced = await ctx.bot.tree.sync()
     await ctx.send(f"Synced {len(synced)} commands to the current guild.")
-    return
 
 
 @client.event
