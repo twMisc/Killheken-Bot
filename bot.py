@@ -1,8 +1,10 @@
+from pathlib import Path
 import random
 import discord
 from discord.ext import commands
 
-MY_TOKEN = 'BOT_TOKEN'
+token = Path('token').read_text()
+MY_TOKEN = token
 
 intents = discord.Intents().all()
 bot = commands.Bot(command_prefix='$', intents=intents)
