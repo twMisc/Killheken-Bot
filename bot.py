@@ -6,10 +6,12 @@ from discord.ext import commands
 token = Path('token').read_text()
 guild = Path('guild').read_text()
 user_id = Path('user_id').read_text()
+user_id_2 = Path('user_id_2').read_text()
 
 MY_TOKEN = token
 MY_GUILD_ID = discord.Object(guild)
 MY_ID = int(user_id)
+MY_ID_2 = int(user_id_2)
 
 dinner_candidtes = ['拉', '咖哩', '肯', '麥', '摩', '大的']
 
@@ -54,8 +56,12 @@ async def on_message(message):
         else:
             if (message.author.id == MY_ID):
                 await message.channel.send('大')
+            if (message.author.id == MY_ID_2):
+                await message.channel.send('<:jiahao:1088007790234185748>')
             else:
                 await message.channel.send("= =")
+    if message.content.startswith("<:87:1088007753617899551>"):
+        await message.channel.send("<:87:1088007753617899551>")
     await client.process_commands(message)
 
 
