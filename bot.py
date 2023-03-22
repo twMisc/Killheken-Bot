@@ -2,13 +2,14 @@ from pathlib import Path
 import random
 import discord
 from discord.ext import commands
-from discord import app_commands
-import re
 
 token = Path('token').read_text()
 guild = Path('guild').read_text()
+user_id = Path('user_id').read_text()
+
 MY_TOKEN = token
 MY_GUILD_ID = discord.Object(guild)
+MY_ID = int(user_id)
 
 dinner_candidtes = ['拉', '咖哩', '肯', '麥', '摩', '大的']
 
@@ -51,7 +52,10 @@ async def on_message(message):
             options = [message.content[1:tmp], message.content[tmp + 2:]]
             await message.channel.send(random.choice(options))
         else:
-            await message.channel.send("= =")
+            if (message.author.id == MY_ID):
+                await message.channel.send('大')
+            else:
+                await message.channel.send("= =")
     await client.process_commands(message)
 
 
