@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import random
 import discord
@@ -7,6 +8,8 @@ token = Path('token').read_text()
 guild = Path('guild').read_text()
 user_id = Path('user_id').read_text()
 user_id_2 = Path('user_id_2').read_text()
+with open('emojis.json') as f:
+    emojis = json.load(f)
 
 MY_TOKEN = token
 MY_GUILD_ID = discord.Object(guild)
@@ -56,12 +59,10 @@ async def on_message(message):
         else:
             if (message.author.id == MY_ID):
                 await message.channel.send('大')
-            if (message.author.id == MY_ID_2):
-                await message.channel.send('<:jiahao:1088007790234185748>')
             else:
                 await message.channel.send("= =")
-    if message.content.startswith("<:87:1088007753617899551>"):
-        await message.channel.send("<:87:1088007753617899551>")
+    if message.content.startswith(f"<:{emojis[0]['name']}:{emojis[0]['id']}>"):
+        await message.channel.send(f"<:{emojis[0]['name']}:{emojis[0]['id']}>")
     await client.process_commands(message)
 
 
