@@ -6,21 +6,17 @@ from discord.ext import commands
 
 token = Path('token').read_text()
 guild = Path('guild').read_text()
-boss_id = Path('boss_id').read_text()
-albert_id = Path('albert_id').read_text()
-zenox_id = Path('zenox_id').read_text()
+
+with open('ids.json') as f:
+    ID_list = json.load(f)
 with open('emojis.json') as f:
     emojis = json.load(f)
 
 MY_TOKEN = token
 MY_GUILD_ID = discord.Object(guild)
-BOSS_ID = int(boss_id)
-ALBERT_ID = int(albert_id)
-ZENOX_ID = int(zenox_id)
 
 dinner_candidtes = ['拉', '咖哩', '肯', '麥', '摩', '大的']
-ID_list = [BOSS_ID, ALBERT_ID, ZENOX_ID]
-Response_list = ['大', '豪', '翔']
+Response_list = ['誠', '大', '豪', '翔', '抹茶']
 intents = discord.Intents().all()
 client = commands.Bot(command_prefix='$', intents=intents)
 
@@ -69,13 +65,15 @@ async def on_message(message):
                 if (message.author.id == ID_list[number]):
                     text_flag = 0
                     await message.channel.send(Response_list[number])
+                    break
             if (text_flag):
                 await message.channel.send("= =")
     if message.content.startswith(emoji(
             emojis[0])) and message.author != client.user:
         for number in range(len(ID_list)):
             if (message.author.id == ID_list[number]):
-                await message.channel.send(emoji(emojis[number + 1]))
+                await message.channel.send(emoji(emojis[number]))
+                break
     await client.process_commands(message)
 
 
