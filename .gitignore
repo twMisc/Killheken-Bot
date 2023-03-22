@@ -1,5 +1,5 @@
 token
 guild
-user_id
-user_id_2
+*_id
 emojis.json
+.*
