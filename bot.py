@@ -22,6 +22,10 @@ intents = discord.Intents().all()
 client = commands.Bot(command_prefix='$', intents=intents)
 
 
+def emoji(emoji: dict):
+    return f"<:{emoji['name']}:{emoji['id']}>"
+
+
 @client.event
 async def on_ready():
     print(
@@ -61,9 +65,9 @@ async def on_message(message):
                 await message.channel.send('大')
             else:
                 await message.channel.send("= =")
-    if message.content.startswith(f"<:{emojis[0]['name']}:{emojis[0]['id']}>"
-                                  ) and message.author != client.user:
-        await message.channel.send(f"<:{emojis[0]['name']}:{emojis[0]['id']}>")
+    if message.content.startswith(emoji(
+            emojis[0])) and message.author != client.user:
+        await message.channel.send(emoji(emojis[0]))
     await client.process_commands(message)
 
 
