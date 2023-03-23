@@ -92,7 +92,10 @@ async def on_message(message):
                     await message.channel.send(Response_list[number])
                     break
             if (text_flag):
-                await message.channel.send("= =")
+                if random.random()<0.01:
+                    await message.channel.send("<:MarineDance:984255206139248670>")
+                else:
+                    await message.channel.send("<:sad:913344603497828413>")
     if message.content.startswith(emoji(
             emojis[0])) and message.author != client.user:
         for number in range(len(ID_list)):
