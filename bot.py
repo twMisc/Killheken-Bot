@@ -3,16 +3,20 @@ from pathlib import Path
 import random
 import re
 import discord
+import subprocess
 from discord.ext import commands
 
 token = Path('token').read_text()
 guild = Path('guild').read_text()
 
+with open('ids_admin.json') as f:
+    admins = json.load(f)
 with open('ids.json') as f:
     ID_list = json.load(f)
 with open('emojis.json') as f:
     emojis = json.load(f)
 
+ADMIN_LIST = admins
 MY_TOKEN = token
 MY_GUILD_ID = discord.Object(guild)
 
@@ -76,6 +80,14 @@ async def on_message(message):
                 await message.channel.send(emoji(emojis[number]))
                 break
     await client.process_commands(message)
+
+
+@client.hybrid_command()
+@commands.dm_only()
+async def update(ctx):
+    if ctx.message.author.id in ADMIN_LIST:
+        await ctx.send('Updating bot...')
+        _ = subprocess.call(["bash", "/home/ubuntu/update_bot.sh"])
 
 
 client.run(MY_TOKEN)
