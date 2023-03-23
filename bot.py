@@ -56,6 +56,8 @@ async def sync(ctx):
         _ = await ctx.bot.tree.sync(guild=MY_GUILD_ID)
         await ctx.send(f"Synced {len(synced)} commands to the current guild.")
         await ctx.send(f"Synced {len(_)} commands to Killheken's friends.")
+    else:
+        await ctx.send(f"This is an admin only command.")
 
 
 @client.event
@@ -92,6 +94,12 @@ async def update(ctx):
     if ctx.message.author.id in ADMIN_LIST:
         await ctx.send('Updating bot....')
         _ = subprocess.call(["bash", "/home/ubuntu/update_bot.sh"])
+    else:
+        await ctx.send(f"This is an admin only command.")
 
+@client.event
+async def on_command_error(ctx, exception):
+    if isinstance(exception, commands.PrivateMessageOnly):
+        await ctx.send("DM me this command to use it.")
 
 client.run(MY_TOKEN)
