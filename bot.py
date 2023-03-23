@@ -86,7 +86,7 @@ async def on_message(message):
 @commands.dm_only()
 async def update(ctx):
     if ctx.message.author.id in ADMIN_LIST:
-        await ctx.send('Updating bot...')
+        await ctx.send('Updating bot....')
         _ = subprocess.call(["bash", "/home/ubuntu/update_bot.sh"])
 
 
