@@ -81,7 +81,7 @@ async def update(ctx):
                        description='輸出帥哥誠的回應率')
 async def rate(ctx):
     t_new = time.time()
-    t_span = max(60*60, t_new-t_old)
+    t_span = min(60*60, t_new-t_old)
     REPLY_RATE = t_func(t_span)
     await ctx.send(f'`帥哥誠現在的回應率是: {REPLY_RATE:.3f}`')
 
@@ -99,7 +99,7 @@ async def on_message(message):
     global t_old, t_new, REPLY_RATE
     if message.content.startswith("誠"):
         t_new = time.time()
-        t_span = max(60*60, t_new-t_old)
+        t_span = min(60*60, t_new-t_old)
         REPLY_RATE = t_func(t_span)
         t_old = t_new
 
