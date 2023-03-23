@@ -34,10 +34,17 @@ def emoji(emoji: dict):
 
 def t_func(t):
     if t<5*60:
-        output = 0.7/(1+math.exp((t-60*5)/60)) + 0.3
+        output = 0.7/(1+math.exp((t-60*1)/10)) + 0.3
     else:
-        output = 0.7/(1+math.exp((t-60*5)/20)) + 0.3
+        output = 0.7/(1+math.exp((t-60*1)/20)) + 0.3
     return output
+
+def get_rate():
+    global t_old, t_new
+    t_new = time.time()
+    t_span = min(60*60, t_new-t_old)
+    REPLY_RATE = t_func(t_span)
+    return REPLY_RATE
 
 @client.event
 async def on_ready():
@@ -45,8 +52,7 @@ async def on_ready():
         f'\n\nSuccessfully logged into Discord as "{client.user}"\nAwaiting user input...'
     )
     global t_old, t_new
-    t_old = time.time()
-    t_new = t_old
+    t_old = -10**6
 
     await client.change_presence(status=discord.Status.online,
                                  activity=discord.Activity(
@@ -80,10 +86,7 @@ async def update(ctx):
 @client.hybrid_command(name='rate',
                        description='輸出帥哥誠的回應率')
 async def rate(ctx):
-    t_new = time.time()
-    t_span = min(60*60, t_new-t_old)
-    REPLY_RATE = t_func(t_span)
-    await ctx.send(f'`帥哥誠現在的回應率是: {REPLY_RATE:.3f}`')
+    await ctx.send(f'`帥哥誠現在的回應率是: {get_rate():.3f}`')
 
 
 @client.event
@@ -96,12 +99,10 @@ async def on_command_error(ctx, exception):
 
 @client.event
 async def on_message(message):
-    global t_old, t_new, REPLY_RATE
-    t_new = time.time()
-    t_span = min(60*60, t_new-t_old)
-    REPLY_RATE = t_func(t_span)
+    global REPLY_RATE, t_old, t_new
     
     if message.content.startswith("誠"):
+        REPLY_RATE = get_rate()
         t_old = t_new
 
         if "晚餐" in message.content:
@@ -120,17 +121,19 @@ async def on_message(message):
                     await message.channel.send("<a:MarineDance:984255206139248670>")
                 else:
                     await message.channel.send("<:sad:913344603497828413>")                    
-    if message.content.startswith(emoji(
-            emojis[0])) and message.author != client.user and random.random() < REPLY_RATE:
-        for number,id in enumerate(ID_list):
-            if (message.author.id == id):
-                await message.channel.send(emoji(emojis[number]))
-                break
-        else:
-            if random.random()>0.1:
-                await message.channel.send("<a:MarineDance:984255206139248670>")
+    if message.content.startswith(emoji(emojis[0])) and message.author != client.user: 
+        REPLY_RATE = get_rate()
+        
+        if random.random() < REPLY_RATE:
+            for number,id in enumerate(ID_list):
+                if (message.author.id == id):
+                    await message.channel.send(emoji(emojis[number]))
+                    break
             else:
-                await message.channel.send("<:sad:913344603497828413>")
+                if random.random()>0.1:
+                    await message.channel.send("<a:MarineDance:984255206139248670>")
+                else:
+                    await message.channel.send("<:sad:913344603497828413>")
     await client.process_commands(message)
 
 client.run(MY_TOKEN)
