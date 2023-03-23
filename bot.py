@@ -48,11 +48,14 @@ async def dinner(ctx):
 
 
 @client.hybrid_command(name='sync',
-                       description='sync commands',
-                       guild=MY_GUILD_ID)
+                       description='sync commands')
+@commands.dm_only()
 async def sync(ctx):
-    synced = await ctx.bot.tree.sync()
-    await ctx.send(f"Synced {len(synced)} commands to the current guild.")
+    if ctx.message.author.id in ADMIN_LIST:
+        synced = await ctx.bot.tree.sync()
+        _ = await ctx.bot.tree.sync(guild=MY_GUILD_ID)
+        await ctx.send(f"Synced {len(synced)} commands to the current guild.")
+        await ctx.send(f"Synced {len(_)} commands to Killheken's friends.")
 
 
 @client.event
@@ -82,7 +85,8 @@ async def on_message(message):
     await client.process_commands(message)
 
 
-@client.hybrid_command()
+@client.hybrid_command(name='update',
+                       description='update the bot')
 @commands.dm_only()
 async def update(ctx):
     if ctx.message.author.id in ADMIN_LIST:
