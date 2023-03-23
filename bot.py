@@ -53,9 +53,8 @@ async def dinner(ctx):
 @commands.is_owner()
 @commands.dm_only()
 async def sync(ctx):
-    if ctx.message.author.id in ADMIN_LIST:
-        synced = await ctx.bot.tree.sync()
-        await ctx.send(f"Synced {len(synced)} commands globally.")
+    synced = await ctx.bot.tree.sync()
+    await ctx.send(f"Synced {len(synced)} commands globally.")
 
 
 @client.hybrid_command(name='update',
@@ -63,9 +62,8 @@ async def sync(ctx):
 @commands.is_owner()
 @commands.dm_only()
 async def update(ctx):
-    if ctx.message.author.id in ADMIN_LIST:
-        await ctx.send('Updating bot....')
-        _ = subprocess.call(["bash", "/home/ubuntu/update_bot.sh"])
+    await ctx.send('Updating bot....')
+    _ = subprocess.call(["bash", "/home/ubuntu/update_bot.sh"])
 
 
 @client.event
