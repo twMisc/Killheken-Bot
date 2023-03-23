@@ -83,7 +83,7 @@ async def rate(ctx):
     t_new = time.time()
     t_span = max(60*60, t_new-t_old)
     REPLY_RATE = t_func(t_span)
-    await ctx.send('`帥哥誠現在的回應率是: {REPLY_RATE:.3f}`')
+    await ctx.send(f'`帥哥誠現在的回應率是: {REPLY_RATE:.3f}`')
 
 
 @client.event
