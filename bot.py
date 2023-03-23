@@ -85,15 +85,13 @@ async def on_message(message):
             options = tmp.split('還是')
             await message.channel.send(random.choice(options))
         else:
-            text_flag = 1
-            for number in range(len(ID_list)):
-                if (message.author.id == ID_list[number]):
-                    text_flag = 0
+            for number,id in enumerate(ID_list):
+                if (message.author.id == id) and len(re.sub('\s','',message.content))==1:
                     await message.channel.send(Response_list[number])
                     break
-            if (text_flag):
+            else:
                 if random.random()>0.1:
-                    await message.channel.send("<:MarineDance:984255206139248670>")
+                    await message.channel.send("<a:MarineDance:984255206139248670>")
                 else:
                     await message.channel.send("<:sad:913344603497828413>")
     if message.content.startswith(emoji(
