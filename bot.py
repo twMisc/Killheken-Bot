@@ -33,10 +33,10 @@ def emoji(emoji: dict):
     return f"<:{emoji['name']}:{emoji['id']}>"
 
 def t_func(t):
-    if t<5*60:
+    if t<1*60:
         output = 0.7/(1+math.exp((t-60*1)/10)) + 0.3
     else:
-        output = 0.7/(1+math.exp((t-60*1)/20)) + 0.3
+        output = 0.7/(1+math.exp((t-60*1)/30)) + 0.3
     return output
 
 def get_rate():
