@@ -16,7 +16,7 @@ with open('ids.json') as f:
 with open('emojis.json') as f:
     emojis = json.load(f)
 
-ADMIN_LIST = admins
+ADMIN_LIST = set(admins)
 MY_TOKEN = token
 MY_GUILD_ID = discord.Object(guild)
 
@@ -24,7 +24,7 @@ dinner_candidtes = ['拉', '咖哩', '肯', '麥', '摩', '大的']
 Response_list = ['誠', '大', '豪', '翔', '抹茶']
 intents = discord.Intents().all()
 client = commands.Bot(command_prefix='$', intents=intents)
-
+client.owner_ids = ADMIN_LIST
 
 def emoji(emoji: dict):
     return f"<:{emoji['name']}:{emoji['id']}>"
@@ -49,13 +49,30 @@ async def dinner(ctx):
 
 @client.hybrid_command(name='sync',
                        description='sync commands')
+@commands.is_owner()
 @commands.dm_only()
 async def sync(ctx):
     if ctx.message.author.id in ADMIN_LIST:
         synced = await ctx.bot.tree.sync()
         await ctx.send(f"Synced {len(synced)} commands globally.")
-    else:
-        await ctx.send(f"This is an admin only command.")
+
+
+@client.hybrid_command(name='update',
+                       description='update the bot')
+@commands.is_owner()
+@commands.dm_only()
+async def update(ctx):
+    if ctx.message.author.id in ADMIN_LIST:
+        await ctx.send('Updating bot....')
+        _ = subprocess.call(["bash", "/home/ubuntu/update_bot.sh"])
+
+
+@client.event
+async def on_command_error(ctx, exception):
+    if isinstance(exception, commands.NotOwner):
+        await ctx.send("This is an admin only command.")
+    elif isinstance(exception, commands.PrivateMessageOnly):
+        await ctx.send("DM me this command to use it.")
 
 
 @client.event
@@ -83,21 +100,5 @@ async def on_message(message):
                 await message.channel.send(emoji(emojis[number]))
                 break
     await client.process_commands(message)
-
-
-@client.hybrid_command(name='update',
-                       description='update the bot')
-@commands.dm_only()
-async def update(ctx):
-    if ctx.message.author.id in ADMIN_LIST:
-        await ctx.send('Updating bot....')
-        _ = subprocess.call(["bash", "/home/ubuntu/update_bot.sh"])
-    else:
-        await ctx.send(f"This is an admin only command.")
-
-@client.event
-async def on_command_error(ctx, exception):
-    if isinstance(exception, commands.PrivateMessageOnly):
-        await ctx.send("DM me this command to use it.")
 
 client.run(MY_TOKEN)
