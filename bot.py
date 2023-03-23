@@ -97,10 +97,11 @@ async def on_command_error(ctx, exception):
 @client.event
 async def on_message(message):
     global t_old, t_new, REPLY_RATE
+    t_new = time.time()
+    t_span = min(60*60, t_new-t_old)
+    REPLY_RATE = t_func(t_span)
+    
     if message.content.startswith("誠"):
-        t_new = time.time()
-        t_span = min(60*60, t_new-t_old)
-        REPLY_RATE = t_func(t_span)
         t_old = t_new
 
         if "晚餐" in message.content:
