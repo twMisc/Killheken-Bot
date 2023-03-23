@@ -56,8 +56,7 @@ async def on_message(message):
         if "晚餐" in message.content:
             await message.channel.send(random.choice(dinner_candidtes))
         elif "還是" in message.content:
-            tmp = message.content.find("還是")
-            options = [message.content[1:tmp], message.content[tmp + 2:]]
+            options = message.content[2:].split('還是')
             await message.channel.send(random.choice(options))
         else:
             text_flag = 1
