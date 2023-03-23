@@ -92,7 +92,7 @@ async def on_message(message):
                     await message.channel.send(Response_list[number])
                     break
             if (text_flag):
-                if random.random()<0.01:
+                if random.random()>0.1:
                     await message.channel.send("<:MarineDance:984255206139248670>")
                 else:
                     await message.channel.send("<:sad:913344603497828413>")
