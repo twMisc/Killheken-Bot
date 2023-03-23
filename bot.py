@@ -22,7 +22,7 @@ MY_GUILD_ID = discord.Object(guild)
 
 dinner_candidates = ['拉', '咖哩', '肯', '麥', '摩', '大的']
 Response_list = ['誠', '大', '豪', '翔', '抹茶']
-REPLY_RATE=0.6
+REPLY_RATE = 0.8
 intents = discord.Intents().all()
 client = commands.Bot(command_prefix='$', intents=intents)
 client.owner_ids = ADMIN_LIST
@@ -78,30 +78,34 @@ async def on_command_error(ctx, exception):
 
 @client.event
 async def on_message(message):
-    if random.random() > REPLY_RATE:
-        if message.content.startswith("誠"):
-            if "晚餐" in message.content:
-                await message.channel.send(random.choice(dinner_candidates))
-            elif "還是" in message.content:
-                tmp = re.sub('^誠 ?','',message.content)
-                options = tmp.split('還是')
-                await message.channel.send(random.choice(options))
-            else:
-                for number,id in enumerate(ID_list):
-                    if (message.author.id == id) and len(re.sub('\s','',message.content))==1:
-                        await message.channel.send(Response_list[number])
-                        break
-                else:
-                    if random.random()>0.1:
-                        await message.channel.send("<a:MarineDance:984255206139248670>")
-                    else:
-                        await message.channel.send("<:sad:913344603497828413>")
-        if message.content.startswith(emoji(
-                emojis[0])) and message.author != client.user:
-            for number in range(len(ID_list)):
-                if (message.author.id == ID_list[number]):
-                    await message.channel.send(emoji(emojis[number]))
+    if message.content.startswith("誠"):
+        if "晚餐" in message.content:
+            await message.channel.send(random.choice(dinner_candidates))
+        elif "還是" in message.content:
+            tmp = re.sub('^誠 ?','',message.content)
+            options = tmp.split('還是')
+            await message.channel.send(random.choice(options))
+        elif random.random() < REPLY_RATE:
+            for number,id in enumerate(ID_list):
+                if (message.author.id == id) and len(re.sub('\s','',message.content))==1:
+                    await message.channel.send(Response_list[number])
                     break
+            else:
+                if random.random()>0.1:
+                    await message.channel.send("<a:MarineDance:984255206139248670>")
+                else:
+                    await message.channel.send("<:sad:913344603497828413>")                    
+    if message.content.startswith(emoji(
+            emojis[0])) and message.author != client.user and random.random() < REPLY_RATE:
+        for number,id in enumerate(ID_list):
+            if (message.author.id == id):
+                await message.channel.send(emoji(emojis[number]))
+                break
+        else:
+            if random.random()>0.1:
+                await message.channel.send("<a:MarineDance:984255206139248670>")
+            else:
+                await message.channel.send("<:sad:913344603497828413>")
     await client.process_commands(message)
 
 client.run(MY_TOKEN)
