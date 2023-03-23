@@ -52,7 +52,7 @@ async def dinner(ctx):
 @commands.dm_only()
 async def sync(ctx):
     if ctx.message.author.id in ADMIN_LIST:
-        synced = await ctx.bot.tree.sync(guild=discord.Object(ctx.message.guild))
+        synced = await ctx.bot.tree.sync(guild=ctx.message.guild)
         _ = await ctx.bot.tree.sync(guild=MY_GUILD_ID)
         await ctx.send(f"Synced {len(synced)} commands to the current guild.")
         await ctx.send(f"Synced {len(_)} commands to Killheken's friends.")
