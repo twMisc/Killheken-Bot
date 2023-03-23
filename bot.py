@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import random
+import re
 import discord
 from discord.ext import commands
 
@@ -56,7 +57,8 @@ async def on_message(message):
         if "晚餐" in message.content:
             await message.channel.send(random.choice(dinner_candidtes))
         elif "還是" in message.content:
-            options = message.content[2:].split('還是')
+            tmp = re.sub('^誠 ?','',message.content)
+            options = tmp.split('還是')
             await message.channel.send(random.choice(options))
         else:
             text_flag = 1
