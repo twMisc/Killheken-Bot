@@ -6,6 +6,7 @@ import time
 import math
 import discord
 import subprocess
+from datetime import datetime
 from discord.ext import commands
 
 token = Path('token').read_text()
@@ -65,6 +66,10 @@ async def dinner(ctx):
     food = random.choice(dinner_candidates)
     await ctx.send(food)
 
+@client.hybrid_command(name='remain', description='問帥哥誠還有幾天本尊退伍')
+async def remain(ctx):
+    remain_days=(datetime(2023,7,7)-datetime.now()).days
+    await ctx.send(f"離哲誠退伍還有{remain_days}天")
 
 @client.hybrid_command(name='sync',
                        description='sync commands')
