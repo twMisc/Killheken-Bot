@@ -67,8 +67,9 @@ async def dinner(ctx):
     await ctx.send(food)
 
 @client.hybrid_command(name='list', description='列出晚餐候選')
-async def dinner(ctx):
-    await ctx.send(dinner_candidates)
+async def dinner_list(ctx):
+    str_candidates=''.join(dinner_candidates)
+    await ctx.send(str_candidates)
 
 @client.hybrid_command(name='remain', description='問帥哥誠還有幾天本尊退伍')
 async def remain(ctx):
