@@ -71,6 +71,19 @@ async def dinner_list(ctx):
     str_candidates=', '.join(dinner_candidates)
     await ctx.send(str_candidates)
 
+@client.hybrid_command(name='add', description='增加晚餐選項')
+async def add_dinner(ctx,food):
+    dinner_candidates.append(food)
+    await ctx.send(f"已增加{food}")
+
+@client.hybrid_command(name='delete', description='刪除晚餐選項')
+async def add_dinner(ctx,food):
+    if food not in dinner_candidates:
+        await ctx.send(f"{food}不在晚餐選項裡")
+        return
+    dinner_candidates.remove(food)
+    await ctx.send(f"已刪除{food}")
+
 @client.hybrid_command(name='remain', description='問帥哥誠還有幾天本尊退伍')
 async def remain(ctx):
     remain_days=(datetime(2023,7,7)-datetime.now()).days
