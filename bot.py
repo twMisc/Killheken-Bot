@@ -66,6 +66,10 @@ async def dinner(ctx):
     food = random.choice(dinner_candidates)
     await ctx.send(food)
 
+@client.hybrid_command(name='list', description='列出晚餐候選')
+async def dinner(ctx):
+    await ctx.send(dinner_candidates)
+
 @client.hybrid_command(name='remain', description='問帥哥誠還有幾天本尊退伍')
 async def remain(ctx):
     remain_days=(datetime(2023,7,7)-datetime.now()).days
