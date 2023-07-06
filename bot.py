@@ -90,7 +90,10 @@ async def add_dinner(ctx,food):
 @client.hybrid_command(name='remain', description='問帥哥誠還有幾天本尊退伍')
 async def remain(ctx):
     remain_days=(datetime(2023,7,7)-datetime.now()).days
-    await ctx.send(f"離哲誠退伍還有{remain_days}天")
+    if remain_days>0:
+        await ctx.send(f"離哲誠退伍還有{remain_days}天")
+    else:
+        await ctx.send("哲誠已經退伍在家爽了 <:Kreygasm:527748250900496384>")
 
 @client.hybrid_command(name='sync',
                        description='sync commands')
