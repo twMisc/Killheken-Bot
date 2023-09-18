@@ -7,7 +7,7 @@ import math
 import discord
 import subprocess
 from datetime import datetime
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 token = Path('token').read_text()
 guild = Path('guild').read_text()
