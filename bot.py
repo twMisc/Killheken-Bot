@@ -18,12 +18,14 @@ with open('ids.json') as f:
     ID_list = json.load(f)
 with open('emojis.json') as f:
     emojis = json.load(f)
+with open('dinner_candidates.json') as f:
+    dinner_candidates = json.load(f)
 
 ADMIN_LIST = set(admins)
 MY_TOKEN = token
 MY_GUILD_ID = discord.Object(guild)
 
-dinner_candidates = ['拉', '咖哩', '肯', '麥', '摩', '大的']
+#dinner_candidates = ['拉', '咖哩', '肯', '麥', '摩', '大的']
 Response_list = ['誠', '大', '豪', '翔', '抹茶']
 REPLY_RATE = 0.65
 intents = discord.Intents().all()
@@ -58,6 +60,10 @@ async def send_daily_message():
         channel_id = 461180385972322306
         channel = bot.get_channel(channel_id)        
         await channel.send("哲誠晚餐吃啥")
+
+def save_dinner_candidates(candidates_list):
+    with open('dinner_candidates.json', 'w') as file:
+        json.dump(candidates_list, file)
 
 @client.event
 async def on_ready():
@@ -98,6 +104,7 @@ async def add_dinner(ctx,food):
         await ctx.send(f"{food}已在晚餐選項裡")
         return
     dinner_candidates.append(food)
+    save_dinner_candidates(dinner_candidates)
     await ctx.send(f"已增加 {food}")
 
 @client.hybrid_command(name='delete', description='刪除晚餐選項')
@@ -106,6 +113,7 @@ async def add_dinner(ctx,food):
         await ctx.send(f"{food}不在晚餐選項裡")
         return
     dinner_candidates.remove(food)
+    save_dinner_candidates(dinner_candidates)
     await ctx.send(f"已刪除 {food}")
 
 @client.hybrid_command(name='remain', description='問帥哥誠還有幾天本尊退伍')
