@@ -58,7 +58,7 @@ async def send_daily_message():
     if now >= send_time:
         # 替換成您要發送消息的頻道 ID
         channel_id = 461180385972322306
-        channel = bot.get_channel(channel_id)        
+        channel = client.get_channel(channel_id)        
         await channel.send("哲誠晚餐吃啥")
 
 def save_dinner_candidates(candidates_list):
