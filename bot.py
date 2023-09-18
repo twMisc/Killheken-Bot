@@ -47,6 +47,18 @@ def get_rate():
     REPLY_RATE = t_func(t_span)
     return REPLY_RATE
 
+@tasks.loop(hours=24)  # 每隔24小時執行一次
+async def send_daily_message():
+    now = datetime.now()
+    # 指定每天的發送時間
+    send_time = now.replace(hour=19, minute=0, second=0, microsecond=0)
+    
+    if now >= send_time:
+        # 替換成您要發送消息的頻道 ID
+        channel_id = 461180385972322306
+        channel = bot.get_channel(channel_id)        
+        await channel.send("哲誠晚餐吃啥")
+
 @client.event
 async def on_ready():
     print(
@@ -60,6 +72,15 @@ async def on_ready():
                                      type=discord.ActivityType.playing,
                                      name="我是帥哥誠"))
 
+
+@client.hybrid_command(name='whatdinner', description='問帥哥誠晚餐吃啥的開關')
+async def whatdinner(ctx):
+    if not send_daily_message.is_running():
+        send_daily_message.start()
+        await ctx.send("已啟動每天詢問。")
+    else:
+        send_daily_message.cancel()
+        await ctx.send("已停止每天詢問。")
 
 @client.hybrid_command(name='dinner', description='問帥哥誠晚餐該吃啥')
 async def dinner(ctx):
