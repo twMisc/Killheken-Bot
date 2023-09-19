@@ -6,7 +6,7 @@ import time
 import math
 import discord
 import subprocess
-from datetime import datetime
+import datetime
 from discord.ext import commands, tasks
 
 token = Path('token').read_text()
@@ -49,17 +49,12 @@ def get_rate():
     REPLY_RATE = t_func(t_span)
     return REPLY_RATE
 
-@tasks.loop(hours=24)  # 每隔24小時執行一次
+@tasks.loop(time=datetime.time(hour=19))  # 每隔24小時執行一次
 async def send_daily_message():
-    now = datetime.now()
-    # 指定每天的發送時間
-    send_time = now.replace(hour=19, minute=0, second=0, microsecond=0)
-    
-    if now >= send_time:
-        # 替換成您要發送消息的頻道 ID
-        channel_id = 461180385972322306
-        channel = client.get_channel(channel_id)        
-        await channel.send("哲誠晚餐吃啥")
+    # 替換成您要發送消息的頻道 ID
+    channel_id = 461180385972322306
+    channel = client.get_channel(channel_id)        
+    await channel.send("哲誠晚餐吃啥")
 
 def save_dinner_candidates(candidates_list):
     with open('dinner_candidates.json', 'w') as file:
@@ -81,12 +76,16 @@ async def on_ready():
 
 @client.hybrid_command(name='whatdinner', description='問帥哥誠晚餐吃啥的開關')
 async def whatdinner(ctx):
-    if not send_daily_message.is_running():
-        send_daily_message.start()
-        await ctx.send("已啟動每天詢問。")
+    if ctx.author.id == 424569079278338059:
+        await ctx.send("無法使用")
     else:
-        send_daily_message.cancel()
-        await ctx.send("已停止每天詢問。")
+        if not send_daily_message.is_running():
+            send_daily_message.start()
+            await ctx.send("已啟動每天詢問。")
+        else:
+            send_daily_message.cancel()
+            await ctx.send("已停止每天詢問。")
+    
 
 @client.hybrid_command(name='dinner', description='問帥哥誠晚餐該吃啥')
 async def dinner(ctx):
@@ -108,7 +107,7 @@ async def add_dinner(ctx,food):
     await ctx.send(f"已增加 {food}")
 
 @client.hybrid_command(name='delete', description='刪除晚餐選項')
-async def add_dinner(ctx,food):
+async def delete_dinner(ctx,food):
     if food not in dinner_candidates:
         await ctx.send(f"{food}不在晚餐選項裡")
         return
@@ -118,7 +117,7 @@ async def add_dinner(ctx,food):
 
 @client.hybrid_command(name='remain', description='問帥哥誠還有幾天本尊退伍')
 async def remain(ctx):
-    remain_days=(datetime(2023,7,7)-datetime.now()).days
+    remain_days=(datetime.datetime(2023,7,7)-datetime.datetime.now()).days
     if remain_days>0:
         await ctx.send(f"離哲誠退伍還有{remain_days}天")
     else:
