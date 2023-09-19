@@ -164,8 +164,7 @@ async def on_message(message):
 
         if "在幹啥" in message.content:
             await message.channel.send("<a:owofonje:1151089087760052234>")
-
-        if "晚餐" in message.content:
+        elif "晚餐" in message.content:
             await message.channel.send(random.choice(dinner_candidates))
         elif "還是" in message.content:
             tmp = re.sub('^誠 ?','',message.content)
