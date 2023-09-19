@@ -49,9 +49,8 @@ def get_rate():
     REPLY_RATE = t_func(t_span)
     return REPLY_RATE
 
-@tasks.loop(time=datetime.time(hour=19))  # 每隔24小時執行一次
+@tasks.loop(time=datetime.time(hour=19))
 async def send_daily_message():
-    # 替換成您要發送消息的頻道 ID
     channel_id = 461180385972322306
     channel = client.get_channel(channel_id)        
     await channel.send("哲誠晚餐吃啥")
@@ -67,6 +66,7 @@ async def on_ready():
     )
     global t_old, t_new
     t_old = -10**6
+    send_daily_message.start()
 
     await client.change_presence(status=discord.Status.online,
                                  activity=discord.Activity(
@@ -161,6 +161,9 @@ async def on_message(message):
     if message.content.startswith("誠"):
         REPLY_RATE = get_rate()
         t_old = t_new
+
+        if "在幹啥" in message.content:
+            await message.channel.send("<a:owofonje:1151089087760052234>")
 
         if "晚餐" in message.content:
             await message.channel.send(random.choice(dinner_candidates))
