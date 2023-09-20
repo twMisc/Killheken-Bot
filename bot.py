@@ -49,7 +49,8 @@ def get_rate():
     REPLY_RATE = t_func(t_span)
     return REPLY_RATE
 
-@tasks.loop(time=datetime.time(hour=19))
+t=datetime.timezone(datetime.timedelta(hours=8))
+@tasks.loop(time=datetime.time(hour=19,tzinfo=t))
 async def send_daily_message():
     channel_id = 461180385972322306
     channel = client.get_channel(channel_id)        
