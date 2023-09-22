@@ -20,6 +20,8 @@ with open('emojis.json') as f:
     emojis = json.load(f)
 with open('dinner_candidates.json') as f:
     dinner_candidates = json.load(f)
+with open('skull_count.json') as f:
+    skull_count = json.load(f)
 
 ADMIN_LIST = set(admins)
 MY_TOKEN = token
@@ -157,8 +159,14 @@ async def on_command_error(ctx, exception):
 
 @client.event
 async def on_message(message):
-    global REPLY_RATE, t_old, t_new
+    global REPLY_RATE, t_old, t_new, skull_count
     
+    if "\U0001F480" in message.content and message.author.id==424569079278338059:
+        skull_count=skull_count+1
+        with open('skull_count.json','w') as f:
+            json.dump(skull_count,f)
+        await message.channel.send(f"哲誠已經了{skull_count}次")
+
     if message.content.startswith("誠"):
         REPLY_RATE = get_rate()
         t_old = t_new
