@@ -165,7 +165,7 @@ async def on_message(message):
         skull_count=skull_count+1
         with open('skull_count.json','w') as f:
             json.dump(skull_count,f)
-        await message.channel.send(f"哲誠已經了{skull_count}次")
+        await message.channel.send(f"哲誠已經\U0001F480了{skull_count}次")
 
     if message.content.startswith("誠"):
         REPLY_RATE = get_rate()
