@@ -176,7 +176,7 @@ async def on_message(message):
         elif "晚餐" in message.content:
             await message.channel.send(random.choice(dinner_candidates))
         elif "還是" in message.content:
-            tmp = re.sub('^誠 ?','',message.content)
+            tmp = re.sub('^誠 ?','',re.sub('你+','我',message.content))
             options = tmp.split('還是')
             await message.channel.send(random.choice(options))
         elif random.random() < REPLY_RATE:
