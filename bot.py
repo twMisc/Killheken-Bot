@@ -63,6 +63,16 @@ def save_dinner_candidates(candidates_list):
         json.dump(candidates_list, file)
 
 @client.event
+async def on_presence_update(before,after):
+    if after.id==424569079278338059:
+        channel=client.get_channel(1158685682076766208)
+
+        if after.status==discord.Status.online:
+            await channel.edit(name='折成在看holo')
+        elif after.status == discord.Status.idle:
+            await channel.edit(name='折成在床上滑手機')
+
+@client.event
 async def on_ready():
     print(
         f'\n\nSuccessfully logged into Discord as "{client.user}"\nAwaiting user input...'
