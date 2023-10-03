@@ -31,6 +31,9 @@ MY_GUILD_ID = discord.Object(guild)
 Response_list = ['誠', '大', '豪', '翔', '抹茶']
 REPLY_RATE = 0.65
 intents = discord.Intents().all()
+intents.presences=True
+intents.guilds=True
+intents.members=True
 client = commands.Bot(command_prefix='$', intents=intents)
 client.owner_ids = ADMIN_LIST
 
