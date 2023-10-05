@@ -163,7 +163,10 @@ async def update(ctx):
 @commands.dm_only()
 async def shell(ctx, command):
     command = command.split()
-    result = subprocess.run(command, capture_output=True, text=True).stdout.strip("\n")
+    try:
+        result = subprocess.run(command, capture_output=True, text=True).stdout.strip("\n")
+    except:
+        result = 'command failed'
     await ctx.send(result)
 
 
