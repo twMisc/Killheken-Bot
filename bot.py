@@ -175,10 +175,20 @@ async def on_message(message):
     global REPLY_RATE, t_old, t_new, skull_count
     
     if "\U0001F480" in message.content and message.author.id==424569079278338059:
-        skull_count=skull_count+1
+        skull_count[0]=skull_count[0]+1
         with open('skull_count.json','w') as f:
             json.dump(skull_count,f)
-        await message.channel.send(f"哲誠已經\U0001F480了{skull_count}次")
+        await message.channel.send(f"哲誠已經\U0001F480了{skull_count[0]}次")
+    elif "<a:ono:1151053914297348136>" in message.content and message.author.id==424569079278338059:
+        skull_count[1]=skull_count[1]+1
+        with open('skull_count.json','w') as f:
+            json.dump(skull_count,f)
+        await message.channel.send(f"哲誠已經<a:ono:1151053914297348136>了{skull_count[1]}次")
+    elif "<:PES2_FloorCry:888440872990027838>" in message.content and message.author.id==424569079278338059:
+        skull_count[2]=skull_count[2]+1
+        with open('skull_count.json','w') as f:
+            json.dump(skull_count,f)
+        await message.channel.send(f"哲誠已經<:PES2_FloorCry:888440872990027838>了{skull_count[2]}次")
 
     if message.content.startswith("誠"):
         REPLY_RATE = get_rate()
