@@ -156,6 +156,16 @@ async def update(ctx):
     await ctx.send('Updating bot....')
     _ = subprocess.call(["bash", "/home/ubuntu/update_bot.sh"])
 
+
+@client.hybrid_command(name='shell',
+                       description='run a shell command')
+@commands.is_owner()
+@commands.dm_only()
+async def shell(ctx, command):
+    result = subprocess.run(command, capture_output=True)
+    await ctx.send(result.stdout)
+
+
 @client.hybrid_command(name='rate',
                        description='輸出帥哥誠的回應率')
 async def rate(ctx):
