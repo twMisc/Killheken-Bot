@@ -162,8 +162,9 @@ async def update(ctx):
 @commands.is_owner()
 @commands.dm_only()
 async def shell(ctx, command):
-    result = subprocess.run(command, capture_output=True)
-    await ctx.send(result.stdout)
+    command = command.split()
+    result = subprocess.run(command, capture_output=True, text=True).stdout.strip("\n")
+    await ctx.send(result)
 
 
 @client.hybrid_command(name='rate',
