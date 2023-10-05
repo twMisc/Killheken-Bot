@@ -182,16 +182,16 @@ async def on_command_error(ctx, exception):
 
 @client.event
 async def on_message(message):
-    global REPLY_RATE, t_old, t_new, skull_count
+    global REPLY_RATE, t_old, t_new, skull_count, emojis
     
     if message.author.id==424569079278338059:
-        for emoji,count in skull_count.items():
-            if emoji in message.content  :
+        for ej,count in skull_count.items():
+            if ej in message.content  :
                 count=count+1
-                skull_count[emoji]=count
+                skull_count[ej]=count
                 with open('skull_count.json','w') as f:
                     json.dump(skull_count,f)
-                await message.channel.send(f"哲誠已經{emoji}了{count}次")
+                await message.channel.send(f"哲誠已經{ej}了{count}次")
 
     if message.content.startswith("誠"):
         REPLY_RATE = get_rate()
