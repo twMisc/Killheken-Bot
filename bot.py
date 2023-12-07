@@ -59,7 +59,7 @@ t=datetime.timezone(datetime.timedelta(hours=8))
 async def send_daily_message():
     channel_id = 461180385972322306
     channel = client.get_channel(channel_id)        
-    await channel.send("哲誠晚餐吃啥")
+    await channel.send("哲誠下班")
 
 def save_dinner_candidates(candidates_list):
     with open('dinner_candidates.json', 'w') as file:
@@ -71,9 +71,9 @@ async def on_presence_update(before,after):
         channel=client.get_channel(1158685682076766208)
 
         if after.status==discord.Status.online:
-            await channel.edit(name='折成在看holo')
+            await channel.edit(name='折成在摸魚')
         elif after.status == discord.Status.idle:
-            await channel.edit(name='折成在床上滑手機')
+            await channel.edit(name='折成在努力上班')
 
 @client.event
 async def on_ready():
