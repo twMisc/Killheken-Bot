@@ -73,6 +73,8 @@ async def on_presence_update(before,after):
         if after.status==discord.Status.online:
             await channel.edit(name='折成在摸魚')
         elif after.status == discord.Status.idle:
+            await channel.edit(name='折成在公司滑手機')
+        elif after.status==discord.Status.offline:
             await channel.edit(name='折成在努力上班')
 
 @client.event
