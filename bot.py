@@ -57,9 +57,13 @@ def get_rate():
 t=datetime.timezone(datetime.timedelta(hours=8))
 @tasks.loop(time=datetime.time(hour=19,tzinfo=t))
 async def send_daily_message():
+    is_weekday = datetime.datetime(tzinfo=t).today().weekday() < 5
     channel_id = 461180385972322306
     channel = client.get_channel(channel_id)        
-    await channel.send("哲誠下班")
+    if is_weekday:
+        await channel.send("哲誠下班")
+    else:
+        await channel.send("哲誠晚餐吃啥")
 
 def save_dinner_candidates(candidates_list):
     with open('dinner_candidates.json', 'w') as file:
