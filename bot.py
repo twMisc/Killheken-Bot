@@ -178,6 +178,12 @@ async def shell(ctx, command):
 async def rate(ctx):
     await ctx.send(f'`帥哥誠現在的回應率是: {get_rate():.3f}`')
 
+@client.hybrid_command(name='poll', description='Create a poll.')
+async def poll(ctx, *, text: str):
+    poll = await ctx.send(f"{text}")
+    await poll.add_reaction("✅")
+    await poll.add_reaction("❌")
+
 
 @client.event
 async def on_command_error(ctx, exception):
