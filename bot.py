@@ -64,7 +64,7 @@ def get_rate():
 t=datetime.timezone(datetime.timedelta(hours=8))
 @tasks.loop(time=datetime.time(hour=19,tzinfo=t))
 async def send_daily_message():
-    is_weekday = datetime.datetime(tzinfo=t).today().weekday() < 5
+    is_weekday = datetime.datetime.today().astimezone(t).weekday() < 5
     channel_id = 461180385972322306
     channel = client.get_channel(channel_id)        
     if is_weekday:
