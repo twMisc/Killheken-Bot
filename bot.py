@@ -8,13 +8,11 @@ import discord
 import subprocess
 import datetime
 from discord.ext import commands, tasks
-from bardapi import Bard
+from bardapi import BardCookies
 
 
 token = Path('token').read_text()
 guild = Path('guild').read_text()
-bard_token = Path('bard_token').read_text()
-bard = Bard(token=bard_token)
 
 with open('ids_admin.json') as f:
     admins = json.load(f)
@@ -26,6 +24,11 @@ with open('dinner_candidates.json') as f:
     dinner_candidates = json.load(f)
 with open('skull_count.json') as f:
     skull_count = json.load(f)
+with open('bard_cookie.json') as f:
+    cookie_dict = json.load(f)
+
+bard = BardCookies(cookie_dict=cookie_dict)
+
 
 ADMIN_LIST = set(admins)
 MY_TOKEN = token
