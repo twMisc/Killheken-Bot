@@ -8,9 +8,13 @@ import discord
 import subprocess
 import datetime
 from discord.ext import commands, tasks
+from bardapi import Bard
+
 
 token = Path('token').read_text()
 guild = Path('guild').read_text()
+bard_token = Path('bard_token').read_text()
+bard = Bard(token=bard_token)
 
 with open('ids_admin.json') as f:
     admins = json.load(f)
@@ -183,7 +187,11 @@ async def poll(ctx, *, text: str):
     poll = await ctx.send(f"{text}")
     await poll.add_reaction("✅")
     await poll.add_reaction("❌")
-
+    
+@client.hybrid_command(name='chat', description='Chat with the bot. (Bard API)')
+async def chat(ctx, input_text: str):
+    response = bard.get_answer(input_text)['content']
+    await ctx.send(response)
 
 @client.event
 async def on_command_error(ctx, exception):
