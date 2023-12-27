@@ -191,9 +191,9 @@ async def poll(ctx, *, text: str):
     await poll.add_reaction("✅")
     await poll.add_reaction("❌")
     
-@client.hybrid_command(name='chat', description='Chat with the bot. (Bard API)')
-async def chat(ctx, *intput_text):
-    response = bard.get_answer(" ".join(*intput_text)['content'])
+@client.command(name='chat', description='Chat with the bot. (Bard API)')
+async def chat(ctx, *input_text):
+    response = bard.get_answer(" ".join(input_text)['content'])
     await ctx.send(response)
 
 @client.event
