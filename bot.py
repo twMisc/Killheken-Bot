@@ -8,8 +8,8 @@ import discord
 import subprocess
 import datetime
 from discord.ext import commands, tasks
-from bardapi import BardCookies
-
+import requests
+from bardapi import Bard, SESSION_HEADERS
 
 token = Path('token').read_text()
 guild = Path('guild').read_text()
@@ -27,8 +27,12 @@ with open('skull_count.json') as f:
 with open('bard_cookie.json') as f:
     cookie_dict = json.load(f)
 
-bard = BardCookies(cookie_dict=cookie_dict)
-
+# Bard with reusable session which contain mutiple cookie values
+session = requests.Session()
+session.cookies.set("__Secure-1PSID", cookie_dict['__Secure-1PSID'])
+session.cookies.set("__Secure-1PSIDTS", cookie_dict['__Secure-1PSIDTS'])
+session.headers = SESSION_HEADERS
+bard = Bard(session=session)
 
 ADMIN_LIST = set(admins)
 MY_TOKEN = token
