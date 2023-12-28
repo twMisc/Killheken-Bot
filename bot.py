@@ -202,7 +202,7 @@ async def chat(ctx, *input_text):
     
 @client.tree.command(name='chat', description='Chat with the bot. (Bard API)')
 async def chat2(ctx, input_text: str):
-    await ctx.defer()
+    await ctx.response.defer()
     response = bard.get_answer(input_text)['content']
     await ctx.send(response)
 
