@@ -9,7 +9,7 @@ import subprocess
 import datetime
 from discord.ext import commands, tasks
 import requests
-from bardapi import Bard, SESSION_HEADERS
+from bardapi import BardCookies, SESSION_HEADERS
 
 token = Path('token').read_text()
 guild = Path('guild').read_text()
@@ -32,7 +32,7 @@ session = requests.Session()
 session.cookies.set("__Secure-1PSID", cookie_dict['__Secure-1PSID'])
 session.cookies.set("__Secure-1PSIDTS", cookie_dict['__Secure-1PSIDTS'])
 session.headers = SESSION_HEADERS
-bard = Bard(token=cookie_dict['__Secure-1PSID'], session=session)
+bard = BardCookies(cookie_dict=cookie_dict, session=session, conversation_id='帥哥誠的煩惱')
 
 ADMIN_LIST = set(admins)
 MY_TOKEN = token
