@@ -32,7 +32,7 @@ session = requests.Session()
 session.cookies.set("__Secure-1PSID", cookie_dict['__Secure-1PSID'])
 session.cookies.set("__Secure-1PSIDTS", cookie_dict['__Secure-1PSIDTS'])
 session.headers = SESSION_HEADERS
-bard = Bard(session=session)
+bard = Bard(token=cookie_dict['__Secure-1PSID'], session=session)
 
 ADMIN_LIST = set(admins)
 MY_TOKEN = token
