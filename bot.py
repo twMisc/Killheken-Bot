@@ -204,7 +204,7 @@ async def chat(ctx, *input_text):
 async def chat2(ctx, input_text: str):
     await ctx.response.defer()
     response = bard.get_answer(input_text)['content']
-    await ctx.send(response)
+    await ctx.response.send_message(response)
 
 @client.event
 async def on_command_error(ctx, exception):
