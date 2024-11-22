@@ -194,7 +194,43 @@ async def poll(ctx, *, text: str):
     poll = await ctx.send(f"{text}")
     await poll.add_reaction("✅")
     await poll.add_reaction("❌")
+
+@tasks.loop(time=datetime.time(hour=10, tzinfo=t))
+async def send_morning_message():
+    is_weekday = datetime.datetime.today().astimezone(t).weekday() < 5
     
+    if is_weekday:
+        channel_id = 461180385972322306
+        channel = client.get_channel(channel_id)
+        
+        remain_days = (datetime.datetime(2025, 1, 20) - datetime.datetime.now()).days
+        
+        greetings = [
+            "早安，大家！哲誠祝你們有個美好的一天！",
+            "早上好！哲誠今天也要加油哦！",
+            "早安！哲誠祝你今天心情愉快！",
+            "新的一天，新的開始！哲誠說早安！",
+            "早安！哲誠今天也要充滿活力地面對挑戰！",
+            "哲誠提醒：早安，記得吃早餐哦！",
+            "哲誠在這裡，祝你有個愉快的早晨！",
+            "哲誠說：新的一天，新的希望，早安！",
+            "哲誠：早安，希望今天的你充滿能量！",
+            "哲誠祝福：早安，願你今天一切順利！"
+        ]
+        
+        greeting_message = random.choice(greetings)
+        
+        await channel.send(f"{greeting_message} 離哲誠出獄還有{remain_days}天")
+    
+@client.hybrid_command(name='toggle_morning_message', description='開關每天早上10點的問候訊息')
+async def toggle_morning_message(ctx):
+    if not send_morning_message.is_running():
+        send_morning_message.start()
+        await ctx.send("已啟動每天早上10點的問候訊息。")
+    else:
+        send_morning_message.cancel()
+        await ctx.send("已停止每天早上10點的問候訊息。")
+
 # @client.command(name='chat', description='Chat with the bot. (Bard API)')
 # async def chat(ctx, *, input_text):
 #     response = bard.get_answer(input_text)['content']
