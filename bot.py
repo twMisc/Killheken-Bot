@@ -148,13 +148,13 @@ async def delete_dinner(ctx,food):
     save_dinner_candidates(dinner_candidates)
     await ctx.send(f"已刪除 {food}")
 
-@client.hybrid_command(name='remain', description='問帥哥誠還有幾天本尊退伍')
+@client.hybrid_command(name='remain', description='問帥哥誠還有幾天恢復自由之身')
 async def remain(ctx):
-    remain_days=(datetime.datetime(2023,7,7)-datetime.datetime.now()).days
+    remain_days=(datetime.datetime(2025,1,20)-datetime.datetime.now()).days
     if remain_days>0:
-        await ctx.send(f"離哲誠退伍還有{remain_days}天")
+        await ctx.send(f"離哲誠出獄還有{remain_days}天")
     else:
-        await ctx.send("哲誠已經退伍在家爽了 <:Kreygasm:527748250900496384>")
+        await ctx.send("哲誠已經出獄在家爽了 <:Kreygasm:527748250900496384>")
 
 @client.hybrid_command(name='sync',
                        description='sync commands')
