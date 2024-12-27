@@ -122,7 +122,7 @@ class PollView(View):
     def create_embed(self):
         embed = discord.Embed(
             title="📊 投票",
-            description=f"**{self.title}**\n{'(可多選)' if self.multiple_choice else '(單選)'}",
+            description=f"## {self.title}\n{'(可多選)' if self.multiple_choice else '(單選)'}",  # 使用 Markdown 標題語法
             color=discord.Color.blue()
         )
 
@@ -137,11 +137,14 @@ class PollView(View):
             percentage = (count / self.total_votes * 100) if self.total_votes > 0 else 0
             bar_length = 20
             filled = int((percentage / 100) * bar_length)
-            bar = '█' * filled + '▒' * (bar_length - filled)
+            
+            bar = '─' * filled + ' ' * (bar_length - filled)
+            
+            value = f"{count}票 ({percentage:.1f}%)\n```{bar}```"
             
             embed.add_field(
                 name=option,
-                value=f"{count}票 ({percentage:.1f}%)\n{bar}",
+                value=value,
                 inline=False
             )
 
