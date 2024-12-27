@@ -8,6 +8,7 @@ import discord
 import subprocess
 import datetime
 from discord.ext import commands, tasks
+from discord.ui import Button, View
 import requests
 from bardapi import BardCookies, SESSION_HEADERS
 
@@ -47,6 +48,104 @@ intents.guilds=True
 intents.members=True
 client = commands.Bot(command_prefix='$', intents=intents)
 client.owner_ids = ADMIN_LIST
+
+class PollView(View):
+    def __init__(self, title, options, multiple_choice=False):
+        super().__init__(timeout=None)
+        self.title = title
+        self.votes = {option: 0 for option in options}
+        self.user_votes = {}
+        self.total_votes = 0
+        self.multiple_choice = multiple_choice
+
+        for option in options:
+            button = Button(label=option, style=discord.ButtonStyle.primary)
+            button.callback = self.create_vote_callback(option)
+            self.add_item(button)
+
+        update_button = Button(label="更新", style=discord.ButtonStyle.secondary)
+        update_button.callback = self.update_poll
+        self.add_item(update_button)
+
+        end_button = Button(label="結束投票", style=discord.ButtonStyle.danger)
+        end_button.callback = self.end_poll
+        self.add_item(end_button)
+
+    def create_vote_callback(self, option):
+        async def callback(interaction: discord.Interaction):
+            user_id = interaction.user.id
+            
+            if self.multiple_choice:
+                if user_id not in self.user_votes:
+                    self.user_votes[user_id] = set()
+                
+                if option in self.user_votes[user_id]:
+                    self.user_votes[user_id].remove(option)
+                    self.votes[option] -= 1
+                    self.total_votes -= 1
+                    await interaction.response.send_message(f"已取消選擇: {option}", ephemeral=True)
+                else:
+                    self.user_votes[user_id].add(option)
+                    self.votes[option] += 1
+                    self.total_votes += 1
+                    await interaction.response.send_message(f"已選擇: {option}", ephemeral=True)
+            else:
+                if user_id in self.user_votes:
+                    if self.user_votes[user_id] == option:
+                        self.votes[option] -= 1
+                        del self.user_votes[user_id]
+                        self.total_votes -= 1
+                        await interaction.response.send_message("已取消投票", ephemeral=True)
+                    else:
+                        previous_option = self.user_votes[user_id]
+                        self.votes[previous_option] -= 1
+                        self.votes[option] += 1
+                        self.user_votes[user_id] = option
+                        await interaction.response.send_message(f"已更改投票為: {option}", ephemeral=True)
+                else:
+                    self.votes[option] += 1
+                    self.user_votes[user_id] = option
+                    self.total_votes += 1
+                    await interaction.response.send_message(f"已投票: {option}", ephemeral=True)
+
+            await interaction.message.edit(embed=self.create_embed())
+        return callback
+
+    async def update_poll(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(embed=self.create_embed())
+
+    async def end_poll(self, interaction: discord.Interaction):
+        for item in self.children:
+            item.disabled = True
+        await interaction.response.edit_message(embed=self.create_embed(), view=self)
+
+    def create_embed(self):
+        embed = discord.Embed(
+            title="📊 投票",
+            description=f"**{self.title}**\n{'(可多選)' if self.multiple_choice else '(單選)'}",
+            color=discord.Color.blue()
+        )
+
+        total_voters = len(self.user_votes)
+        embed.add_field(
+            name=f"總投票數: {self.total_votes}",
+            value=f"參與人數: {total_voters}",
+            inline=False
+        )
+
+        for option, count in self.votes.items():
+            percentage = (count / self.total_votes * 100) if self.total_votes > 0 else 0
+            bar_length = 20
+            filled = int((percentage / 100) * bar_length)
+            bar = '█' * filled + '▒' * (bar_length - filled)
+            
+            embed.add_field(
+                name=option,
+                value=f"{count}票 ({percentage:.1f}%)\n{bar}",
+                inline=False
+            )
+
+        return embed
 
 def emoji(emoji: dict):
     return f"<:{emoji['name']}:{emoji['id']}>"
@@ -189,11 +288,21 @@ async def shell(ctx, command):
 async def rate(ctx):
     await ctx.send(f'`帥哥誠現在的回應率是: {get_rate():.3f}`')
 
-@client.hybrid_command(name='poll', description='Create a poll.')
-async def poll(ctx, *, text: str):
-    poll = await ctx.send(f"{text}")
-    await poll.add_reaction("✅")
-    await poll.add_reaction("❌")
+@client.hybrid_command(name='poll', description='建立一個投票')
+async def poll(ctx, title: str, options: str, multiple_choice: bool = False):
+    option_list = [opt.strip() for opt in options.split(',')]
+    
+    if len(option_list) < 2:
+        await ctx.send("請提供至少兩個選項。")
+        return
+    
+    if len(option_list) != len(set(option_list)):
+        await ctx.send("選項不能重複。")
+        return
+        
+    view = PollView(title, option_list, multiple_choice)
+    embed = view.create_embed()
+    await ctx.send(embed=embed, view=view)
 
 @tasks.loop(time=datetime.time(hour=10, tzinfo=t))
 async def send_morning_message():
