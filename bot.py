@@ -168,15 +168,15 @@ def get_rate():
     return REPLY_RATE
 
 t=datetime.timezone(datetime.timedelta(hours=8))
-@tasks.loop(time=datetime.time(hour=19,tzinfo=t))
+@tasks.loop(time=datetime.time(hour=18,tzinfo=t))
 async def send_daily_message():
     is_weekday = datetime.datetime.today().astimezone(t).weekday() < 5
     channel_id = 461180385972322306
     channel = client.get_channel(channel_id)        
     if is_weekday:
-        await channel.send("哲誠下班")
+        await channel.send("大家下班 <:Stream_camperlol:926077241035747339>")
     else:
-        await channel.send("哲誠晚餐吃啥")
+        await channel.send("大家晚餐吃啥")
 
 def save_dinner_candidates(candidates_list):
     with open('dinner_candidates.json', 'w') as file:
@@ -250,13 +250,13 @@ async def delete_dinner(ctx,food):
     save_dinner_candidates(dinner_candidates)
     await ctx.send(f"已刪除 {food}")
 
-@client.hybrid_command(name='remain', description='問帥哥誠還有幾天恢復自由之身')
+@client.hybrid_command(name='remain', description='問老大何時日本')
 async def remain(ctx):
-    remain_days=(datetime.datetime(2025,1,20)-datetime.datetime.now()).days
+    remain_days=(datetime.datetime(2025,9,6)-datetime.datetime.now()).days
     if remain_days>0:
-        await ctx.send(f"離哲誠出獄還有{remain_days}天")
+        await ctx.send(f"離老大日本還有{remain_days}天")
     else:
-        await ctx.send("哲誠已經出獄在家爽了 <:Kreygasm:527748250900496384>")
+        await ctx.send("老大已經在日本爽了 <:Kreygasm:527748250900496384>")
 
 @client.hybrid_command(name='sync',
                        description='sync commands')
@@ -327,7 +327,8 @@ async def send_morning_message():
             "哲誠在這裡，祝你有個愉快的早晨！",
             "哲誠說：新的一天，新的希望，早安！",
             "哲誠：早安，希望今天的你充滿能量！",
-            "哲誠祝福：早安，願你今天一切順利！"
+            "哲誠祝福：早安，願你今天一切順利！",
+            "大家工作加油!"
         ]
         
         greeting_message = random.choice(greetings)
