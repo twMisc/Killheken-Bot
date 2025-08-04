@@ -174,7 +174,7 @@ async def send_daily_message():
     channel_id = 461180385972322306
     channel = client.get_channel(channel_id)        
     if is_weekday:
-        await channel.send("大家下班 <:Stream_camperlol:926077241035747339>")
+        await channel.send("大家下班 <:camperlol:1401871423332421632>")
     else:
         await channel.send("大家晚餐吃啥")
 
