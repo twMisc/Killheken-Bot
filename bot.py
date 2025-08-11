@@ -362,6 +362,12 @@ async def on_command_error(ctx, exception):
     elif isinstance(exception, commands.PrivateMessageOnly):
         await ctx.send("DM me this command to use it.")
 
+@client.hybrid_command(name='free', description='查看哲誠米蟲的天數')
+async def free(ctx):
+    free_date = datetime.datetime(2025, 8, 1).astimezone(t)
+    today = datetime.datetime.now().astimezone(t)
+    elapsed = today - free_date
+    await ctx.send(f"今天是哲誠當米蟲的第 {elapsed.days} 天。")
 
 @client.event
 async def on_message(message):
