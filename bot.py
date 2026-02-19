@@ -43,6 +43,10 @@ MY_GUILD_ID = discord.Object(guild)
 Response_list = ['誠', '大', '豪', '翔', '抹茶']
 REPLY_RATE = 0.65
 HOLIDAY_MODE = False
+DAILY_MESSAGE_ID = None
+DAILY_CLAIMED_USERS = set()
+COIN_FILE = 'coins.json'
+HOLIDAY_FILE = 'holidays.json'
 intents = discord.Intents().all()
 intents.presences=True
 intents.guilds=True
@@ -167,18 +171,34 @@ def get_rate():
     t_span = min(60*60, t_new-t_old)
     REPLY_RATE = t_func(t_span)
     return REPLY_RATE
-
+    
+def get_today_holiday():
+    try:
+        with open(HOLIDAY_FILE, 'r', encoding='utf-8') as f:
+            holidays = json.load(f)
+        today_str = datetime.datetime.now(t).strftime('%Y-%m-%d')
+        return holidays.get(today_str)
+    except:
+        return None
+        
 t=datetime.timezone(datetime.timedelta(hours=8))
 @tasks.loop(time=datetime.time(hour=18,tzinfo=t))
 async def send_daily_message():
-    global HOLIDAY_MODE
+    global HOLIDAY_MODE, DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS
     is_weekday = datetime.datetime.today().astimezone(t).weekday() < 5
     channel_id = 461180385972322306
     channel = client.get_channel(channel_id)   
+
+    today_holiday = get_today_holiday()
+    
     if HOLIDAY_MODE:
         await channel.send("大家起來 Game")
+    elif today_holiday:
+        await channel.send(f"大家起來 Game")
     elif is_weekday:
-        await channel.send("大家下班 <:camperlol:1401871423332421632>")
+        msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前3名按反應領折成幣!)")
+        DAILY_MESSAGE_ID = msg.id
+        DAILY_CLAIMED_USERS.clear()
     else:
         await channel.send("大家晚餐吃啥")
 
@@ -373,13 +393,49 @@ async def free(ctx):
     elapsed = today - free_date
     await ctx.send(f"今天是哲誠當米蟲的第 {elapsed.days} 天。")
 
-@client.hybrid_command(name='toggle_holiday', description='手動開關假日模式')
+@client.hybrid_command(name='nextholiday', description='查看下一個連假')
+async def nextholiday(ctx):
+    try:
+        with open(HOLIDAY_FILE, 'r', encoding='utf-8') as f:
+            holidays = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        await ctx.send("找不到假日名單。")
+        return
+
+    today = datetime.datetime.now(t).date()
+    today_str = today.strftime('%Y-%m-%d')
+    
+    response_lines = []
+
+    if today_str in holidays:
+        response_lines.append(f"🎉 我們現在正在放 **{holidays[today_str]}**！好好享受！\n")
+
+    next_holiday_date_str = None
+    next_holiday_name = None
+
+    for date_str, name in holidays.items():
+        if date_str > today_str:
+            next_holiday_date_str = date_str
+            next_holiday_name = name
+            break
+
+    if next_holiday_date_str:
+        next_date = datetime.datetime.strptime(next_holiday_date_str, '%Y-%m-%d').date()
+        days_left = (next_date - today).days
+        
+        response_lines.append(f"📅 下一個連假是 **{next_holiday_name}** ({next_holiday_date_str})")
+        response_lines.append(f"⏳ 距離現在還有 **{days_left}** 天")
+    else:
+        response_lines.append("今年看起來已經沒有連假了...")
+
+    await ctx.send("\n".join(response_lines))
+    
+@client.hybrid_command(name='toggle_holiday', description='手動強制開關假日模式')
 async def toggle_holiday(ctx):
     global HOLIDAY_MODE
     HOLIDAY_MODE = not HOLIDAY_MODE
-    
-    status_text = "開啟" if HOLIDAY_MODE else "關閉"
-    await ctx.send(f"假日模式已{status_text}。")
+    status = "開啟" if HOLIDAY_MODE else "關閉"
+    await ctx.send(f"手動假日模式已{status}。")
 
 @client.event
 async def on_message(message):
@@ -430,5 +486,55 @@ async def on_message(message):
                 else:
                     await message.channel.send("<:sad:913344603497828413>")
     await client.process_commands(message)
+
+def update_user_coins(user_id, amount=1):
+    try:
+        with open(COIN_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+    
+    uid_str = str(user_id)
+    new_balance = data.get(uid_str, 0) + amount
+    data[uid_str] = new_balance
+    
+    with open(COIN_FILE, 'w') as f:
+        json.dump(data, f)
+        
+    return new_balance
+
+@client.event
+async def on_raw_reaction_add(payload):
+    global DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS
+
+    if DAILY_MESSAGE_ID is None or payload.message_id != DAILY_MESSAGE_ID:
+        return
+
+    if payload.user_id == client.user.id:
+        return
+
+    if payload.user_id in DAILY_CLAIMED_USERS:
+        return
+
+    if len(DAILY_CLAIMED_USERS) >= 3:
+        return
+
+    DAILY_CLAIMED_USERS.add(payload.user_id)
+    new_balance = update_user_coins(payload.user_id)
+    spots_left = 3 - len(DAILY_CLAIMED_USERS)
+    
+    channel = client.get_channel(payload.channel_id)
+    await channel.send(f"💰 <@{payload.user_id}> 下班打卡成功！獲得 1 折成幣 (目前: {new_balance})。剩餘名額: {spots_left}")
+
+@client.hybrid_command(name='wallet', description='查看你的折成幣數量')
+async def wallet(ctx):
+    try:
+        with open(COIN_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+    
+    balance = data.get(str(ctx.author.id), 0)
+    await ctx.send(f"<@{ctx.author.id}> 你目前擁有 {balance} 枚折成幣 💰")
 
 client.run(MY_TOKEN)
