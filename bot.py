@@ -406,19 +406,24 @@ async def nextholiday(ctx):
     today_str = today.strftime('%Y-%m-%d')
     
     response_lines = []
-
-    if today_str in holidays:
-        response_lines.append(f"🎉 我們現在正在放 **{holidays[today_str]}**！好好享受！\n")
-
+    
+    today_holiday_name = holidays.get(today_str)
+    
+    if today_holiday_name:
+        response_lines.append(f"🎉 我們現在正在放 **{today_holiday_name}**！好好享受！\n")
+        
     next_holiday_date_str = None
     next_holiday_name = None
-
+    
     for date_str, name in holidays.items():
         if date_str > today_str:
+            if today_holiday_name and name == today_holiday_name:
+                continue
+                
             next_holiday_date_str = date_str
             next_holiday_name = name
             break
-
+            
     if next_holiday_date_str:
         next_date = datetime.datetime.strptime(next_holiday_date_str, '%Y-%m-%d').date()
         days_left = (next_date - today).days
@@ -426,8 +431,9 @@ async def nextholiday(ctx):
         response_lines.append(f"📅 下一個連假是 **{next_holiday_name}** ({next_holiday_date_str})")
         response_lines.append(f"⏳ 距離現在還有 **{days_left}** 天")
     else:
-        response_lines.append("今年看起來已經沒有連假了...")
-
+        if not today_holiday_name:
+            response_lines.append("今年看起來已經沒有連假了...")
+            
     await ctx.send("\n".join(response_lines))
     
 @client.hybrid_command(name='toggle_holiday', description='手動強制開關假日模式')
