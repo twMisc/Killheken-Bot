@@ -376,9 +376,9 @@ async def free(ctx):
 @client.hybrid_command(name='toggle_holiday', description='手動開關假日模式')
 async def toggle_holiday(ctx):
     global HOLIDAY_MODE
-    holiday_mode = not HOLIDAY_MODE
+    HOLIDAY_MODE = not HOLIDAY_MODE
     
-    status_text = "開啟" if holiday_mode else "關閉"
+    status_text = "開啟" if HOLIDAY_MODE else "關閉"
     await ctx.send(f"假日模式已{status_text}。")
 
 @client.event
