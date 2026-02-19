@@ -42,6 +42,7 @@ MY_GUILD_ID = discord.Object(guild)
 #dinner_candidates = ['拉', '咖哩', '肯', '麥', '摩', '大的']
 Response_list = ['誠', '大', '豪', '翔', '抹茶']
 REPLY_RATE = 0.65
+HOLIDAY_MODE = False
 intents = discord.Intents().all()
 intents.presences=True
 intents.guilds=True
@@ -170,10 +171,13 @@ def get_rate():
 t=datetime.timezone(datetime.timedelta(hours=8))
 @tasks.loop(time=datetime.time(hour=18,tzinfo=t))
 async def send_daily_message():
+    global HOLIDAY_MODE
     is_weekday = datetime.datetime.today().astimezone(t).weekday() < 5
     channel_id = 461180385972322306
-    channel = client.get_channel(channel_id)        
-    if is_weekday:
+    channel = client.get_channel(channel_id)   
+    if HOLIDAY_MODE:
+        await channel.send("大家起來 Game")
+    elif is_weekday:
         await channel.send("大家下班 <:camperlol:1401871423332421632>")
     else:
         await channel.send("大家晚餐吃啥")
@@ -368,6 +372,14 @@ async def free(ctx):
     today = datetime.datetime.now().astimezone(t)
     elapsed = today - free_date
     await ctx.send(f"今天是哲誠當米蟲的第 {elapsed.days} 天。")
+
+@client.hybrid_command(name='toggle_holiday', description='手動開關假日模式 (開啟時每日訊息改為放假愉快)')
+async def toggle_holiday(ctx):
+    global HOLIDAY_MODE
+    holiday_mode = not HOLIDAY_MODE
+    
+    status_text = "開啟" if holiday_mode else "關閉"
+    await ctx.send(f"假日模式已{status_text}。")
 
 @client.event
 async def on_message(message):
