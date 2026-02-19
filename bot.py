@@ -373,7 +373,7 @@ async def free(ctx):
     elapsed = today - free_date
     await ctx.send(f"今天是哲誠當米蟲的第 {elapsed.days} 天。")
 
-@client.hybrid_command(name='toggle_holiday', description='手動開關假日模式 (開啟時每日訊息改為放假愉快)')
+@client.hybrid_command(name='toggle_holiday', description='手動開關假日模式')
 async def toggle_holiday(ctx):
     global HOLIDAY_MODE
     holiday_mode = not HOLIDAY_MODE
