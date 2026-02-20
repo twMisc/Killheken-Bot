@@ -381,10 +381,20 @@ async def toggle_morning_message(ctx):
 
 @client.event
 async def on_command_error(ctx, exception):
-    if isinstance(exception, commands.NotOwner):
+    if isinstance(exception, commands.CommandOnCooldown):
+        # 將總秒數換算成分鐘與秒數
+        minutes, seconds = divmod(int(exception.retry_after), 60)
+        time_str = f"{minutes} 分 {seconds} 秒" if minutes > 0 else f"{seconds} 秒"
+        
+        # ephemeral=True 代表這則訊息只有觸發指令的人看得到，不會洗頻
+        await ctx.send(f"⏳ 賭場休息中！請等待 **{time_str}** 後再試。", ephemeral=True)
+        
+    elif isinstance(exception, commands.NotOwner):
         await ctx.send("This is an admin only command.")
     elif isinstance(exception, commands.PrivateMessageOnly):
         await ctx.send("DM me this command to use it.")
+    else:
+        print(f"Error: {exception}")
 
 @client.hybrid_command(name='free', description='查看哲誠米蟲的天數')
 async def free(ctx):
@@ -548,6 +558,7 @@ async def wallet(ctx):
 HONGBAO_FILE = 'hongbao.json'
 
 @client.hybrid_command(name='gamble', description='賭博：輸入金額，骰出 >50 翻倍，否則歸零')
+@commands.cooldown(1, 3600, commands.BucketType.user)  # 👈 1 代表次數，3600 代表秒數 (1小時)
 async def gamble(ctx, amount: int):
     if amount <= 0:
         await ctx.send("❌ 賭注必須大於 0")
@@ -572,7 +583,7 @@ async def gamble(ctx, amount: int):
     else:
         new_balance = update_user_coins(ctx.author.id, -amount)
         await ctx.send(f"🎲 你骰出了 **{roll}**... 輸光光 💸 (目前: {new_balance})")
-
+        
 @client.hybrid_command(name='rich', description='查看折成幣富豪榜 (前 5 名)')
 async def rich(ctx):
     try:
