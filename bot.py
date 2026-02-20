@@ -542,5 +542,96 @@ async def wallet(ctx):
     
     balance = data.get(str(ctx.author.id), 0)
     await ctx.send(f"<@{ctx.author.id}> 你目前擁有 {balance} 枚折成幣 💰")
+    
+# --- 經濟與娛樂系統 ---
 
+HONGBAO_FILE = 'hongbao.json'
+
+@client.hybrid_command(name='gamble', description='賭博：輸入金額，骰出 >50 翻倍，否則歸零')
+async def gamble(ctx, amount: int):
+    if amount <= 0:
+        await ctx.send("❌ 賭注必須大於 0")
+        return
+        
+    try:
+        with open(COIN_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+        
+    current_balance = data.get(str(ctx.author.id), 0)
+    
+    if amount > current_balance:
+        await ctx.send(f"❌ 你的錢不夠！你只有 {current_balance} 枚折成幣。")
+        return
+        
+    roll = random.randint(1, 100)
+    if roll > 50:
+        new_balance = update_user_coins(ctx.author.id, amount)
+        await ctx.send(f"🎲 你骰出了 **{roll}**！贏了！獲得 {amount} 枚折成幣 (目前: {new_balance}) 🎉")
+    else:
+        new_balance = update_user_coins(ctx.author.id, -amount)
+        await ctx.send(f"🎲 你骰出了 **{roll}**... 輸光光 💸 (目前: {new_balance})")
+
+@client.hybrid_command(name='rich', description='查看折成幣富豪榜 (前 5 名)')
+async def rich(ctx):
+    try:
+        with open(COIN_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        await ctx.send("目前還沒有人有錢...")
+        return
+    
+    sorted_users = sorted(data.items(), key=lambda item: item[1], reverse=True)
+    top_5 = sorted_users[:5]
+    
+    if not top_5:
+        await ctx.send("目前還沒有人有錢...")
+        return
+    
+    embed = discord.Embed(title="🏆 折成幣富豪榜", color=discord.Color.gold())
+    
+    for rank, (uid, coins) in enumerate(top_5, 1):
+        user = client.get_user(int(uid))
+        name = user.display_name if user else f"User {uid}"
+        embed.add_field(name=f"第 {rank} 名", value=f"**{name}**: {coins} 幣", inline=False)
+        
+    await ctx.send(embed=embed)
+
+@client.hybrid_command(name='hongbao', description='🧧 春節限定：每天領取一次折成幣紅包！')
+async def hongbao(ctx):
+    today_holiday = get_today_holiday()
+    if today_holiday != "春節連假":
+        await ctx.send("❌ 現在不是春節連假期間，沒有紅包可以領喔！")
+        return
+
+    user_id = ctx.author.id
+    today_str = datetime.datetime.now(t).strftime('%Y-%m-%d')
+
+    try:
+        with open(HONGBAO_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {"date": "", "claimed_users": []}
+
+    if data.get("date") != today_str:
+        data = {"date": today_str, "claimed_users": []}
+
+    if user_id in data["claimed_users"]:
+        await ctx.send("🧧 你今天已經領過紅包囉！明天再來吧！")
+        return
+
+    amount = random.choices(
+        population=[1, 2, 3, 5, 8, 18], 
+        weights=[30, 30, 20, 10, 8, 2], 
+        k=1
+    )[0]
+
+    data["claimed_users"].append(user_id)
+    with open(HONGBAO_FILE, 'w') as f:
+        json.dump(data, f)
+
+    new_balance = update_user_coins(user_id, amount)
+    await ctx.send(f"🧨 **新年快樂！** <@{user_id}> 打開了紅包，獲得了 **{amount}** 枚折成幣！ (目前總計: {new_balance} 幣) 🧧")
+    
 client.run(MY_TOKEN)
