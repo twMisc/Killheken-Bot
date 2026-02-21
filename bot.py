@@ -25,16 +25,7 @@ with open('dinner_candidates.json') as f:
     dinner_candidates = json.load(f)
 with open('skull_count.json') as f:
     skull_count = json.load(f)
-# with open('bard_cookie.json') as f:
-#     cookie_dict = json.load(f)
-
-# Bard with reusable session which contain mutiple cookie values
-# session = requests.Session()
-# session.cookies.set("__Secure-1PSID", cookie_dict['__Secure-1PSID'])
-# session.cookies.set("__Secure-1PSIDTS", cookie_dict['__Secure-1PSIDTS'])
-# session.headers = SESSION_HEADERS
-# bard = BardCookies(cookie_dict=cookie_dict, session=session, conversation_id='c_2e5b34f1bae27158')
-
+    
 ADMIN_LIST = set(admins)
 MY_TOKEN = token
 MY_GUILD_ID = discord.Object(guild)
@@ -387,18 +378,7 @@ async def toggle_morning_message(ctx):
     else:
         send_morning_message.cancel()
         await ctx.send("已停止每天早上10點的問候訊息。")
-
-# @client.command(name='chat', description='Chat with the bot. (Bard API)')
-# async def chat(ctx, *, input_text):
-#     response = bard.get_answer(input_text)['content']
-#     await ctx.send(response)
-    
-# @client.tree.command(name='chat', description='Chat with the bot. (Bard API)')
-# async def chat2(ctx, input_text: str):
-#     await ctx.response.defer()
-#     response = bard.get_answer(input_text)['content']
-#     await ctx.followup.send(response)
-
+        
 @client.event
 async def on_command_error(ctx, exception):
     if isinstance(exception, commands.CommandOnCooldown):
