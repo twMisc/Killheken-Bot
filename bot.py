@@ -9,30 +9,26 @@ import subprocess
 import datetime
 from discord.ext import commands, tasks
 from discord.ui import Button, View
-import requests
-from bardapi import BardCookies, SESSION_HEADERS
 
-token = Path('token').read_text()
-guild = Path('guild').read_text()
+TOKEN = Path('token').read_text().strip()
+GUILD = Path('guild').read_text().strip()
 
 with open('ids_admin.json') as f:
-    admins = json.load(f)
+    ADMIN_LIST = set(json.load(f))
 with open('ids.json') as f:
-    ID_list = json.load(f)
+    ID_LIST = json.load(f)
 with open('emojis.json') as f:
-    emojis = json.load(f)
+    EMOJIS = json.load(f)
 with open('dinner_candidates.json') as f:
-    dinner_candidates = json.load(f)
+    DINNER_CANDIDATES = json.load(f)
 with open('skull_count.json') as f:
-    skull_count = json.load(f)
-    
-ADMIN_LIST = set(admins)
-MY_TOKEN = token
-MY_GUILD_ID = discord.Object(guild)
+    SKULL_COUNT = json.load(f)
 
-#dinner_candidates = ['拉', '咖哩', '肯', '麥', '摩', '大的']
+MY_TOKEN = TOKEN
+MY_GUILD_ID = discord.Object(GUILD)
+
 TAIPEI_TZ = datetime.timezone(datetime.timedelta(hours=8))
-Response_list = ['誠', '大', '豪', '翔', '抹茶']
+RESPONSE_LIST = ['誠', '大', '豪', '翔', '抹茶']
 REPLY_RATE = 0.65
 HOLIDAY_MODE = False
 DAILY_MESSAGE_ID = None
@@ -41,16 +37,17 @@ COIN_FILE = 'coins.json'
 HOLIDAY_FILE = 'holidays.json'
 DAILY_EVENT_TYPE = 'weekday'
 HONGBAO_FILE = 'hongbao.json'
+T_OLD = -10**6
+T_NEW = time.time()
 
 intents = discord.Intents().all()
-intents.presences=True
-intents.guilds=True
-intents.members=True
+intents.presences = True
+intents.guilds = True
+intents.members = True
 client = commands.Bot(command_prefix='$', intents=intents)
 client.owner_ids = ADMIN_LIST
 
 def get_now():
-    """Returns the current timezone-aware datetime in Taiwan."""
     return datetime.datetime.now(TAIPEI_TZ)
 
 class PollView(View):
@@ -126,7 +123,7 @@ class PollView(View):
     def create_embed(self):
         embed = discord.Embed(
             title="📊 投票",
-            description=f"## {self.title}\n{'(可多選)' if self.multiple_choice else '(單選)'}",  # 使用 Markdown 標題語法
+            description=f"## {self.title}\n{'(可多選)' if self.multiple_choice else '(單選)'}",
             color=discord.Color.blue()
         )
 
@@ -141,35 +138,25 @@ class PollView(View):
             percentage = (count / self.total_votes * 100) if self.total_votes > 0 else 0
             bar_length = 20
             filled = int((percentage / 100) * bar_length)
-            
             bar = '─' * filled + ' ' * (bar_length - filled)
-            
             value = f"{count}票 ({percentage:.1f}%)\n```{bar}```"
-            
-            embed.add_field(
-                name=option,
-                value=value,
-                inline=False
-            )
+            embed.add_field(name=option, value=value, inline=False)
 
         return embed
 
-def emoji(emoji: dict):
-    return f"<:{emoji['name']}:{emoji['id']}>"
+def emoji(emoji_dict: dict):
+    return f"<:{emoji_dict['name']}:{emoji_dict['id']}>"
 
-def t_func(t):
-    if t<1*60:
-        output = 0.7/(1+math.exp((t-60*1)/10)) + 0.3
-    else:
-        output = 0.7/(1+math.exp((t-60*1)/30)) + 0.3
-    return output
+def t_func(t_val):
+    if t_val < 1 * 60:
+        return 0.7 / (1 + math.exp((t_val - 60 * 1) / 10)) + 0.3
+    return 0.7 / (1 + math.exp((t_val - 60 * 1) / 30)) + 0.3
 
 def get_rate():
-    global t_old, t_new
-    t_new = time.time()
-    t_span = min(60*60, t_new-t_old)
-    REPLY_RATE = t_func(t_span)
-    return REPLY_RATE
+    global T_OLD, T_NEW
+    T_NEW = time.time()
+    t_span = min(60 * 60, T_NEW - T_OLD)
+    return t_func(t_span)
     
 def get_today_holiday():
     try:
@@ -180,17 +167,14 @@ def get_today_holiday():
     except:
         return None
         
-@tasks.loop(time=datetime.time(hour=18, tzinfo=t))
+@tasks.loop(time=datetime.time(hour=18, tzinfo=TAIPEI_TZ))
 async def send_daily_message():
     global HOLIDAY_MODE, DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS, DAILY_EVENT_TYPE
     
     is_weekday = get_now().weekday() < 5
-    channel_id = 461180385972322306
-    channel = client.get_channel(channel_id)
-    
+    channel = client.get_channel(461180385972322306)
     today_holiday = get_today_holiday()
     
-    # 只要是連假、手動放假、或是週末 (not is_weekday)，就觸發假日抽獎！
     if HOLIDAY_MODE or today_holiday or not is_weekday:
         DAILY_EVENT_TYPE = 'holiday'
         holiday_name = today_holiday if today_holiday else ("連假" if HOLIDAY_MODE else "週末")
@@ -205,13 +189,11 @@ async def send_daily_message():
         DAILY_MESSAGE_ID = msg.id
         DAILY_CLAIMED_USERS.clear()
         
-        # 機器人自動加上選項反應
         await msg.add_reaction("🤑")
         await msg.add_reaction("🎲")
         await msg.add_reaction("🪙")
         
     else:
-        # 平日一般打卡
         DAILY_EVENT_TYPE = 'weekday'
         msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前 3 名按反應領 1 枚折成幣!)")
         DAILY_MESSAGE_ID = msg.id
@@ -222,31 +204,25 @@ def save_dinner_candidates(candidates_list):
         json.dump(candidates_list, file)
 
 @client.event
-async def on_presence_update(before,after):
-    if after.id==424569079278338059:
-        channel=client.get_channel(1158685682076766208)
-
-        if after.status==discord.Status.online:
+async def on_presence_update(before, after):
+    if after.id == 424569079278338059:
+        channel = client.get_channel(1158685682076766208)
+        if after.status == discord.Status.online:
             await channel.edit(name='折成在摸魚')
         elif after.status == discord.Status.idle:
             await channel.edit(name='折成在公司滑手機')
-        elif after.status==discord.Status.offline:
+        elif after.status == discord.Status.offline:
             await channel.edit(name='折成在努力上班')
 
 @client.event
 async def on_ready():
-    print(
-        f'\n\nSuccessfully logged into Discord as "{client.user}"\nAwaiting user input...'
-    )
-    global t_old, t_new
-    t_old = -10**6
-    send_daily_message.start()
-
+    print(f'\n\nSuccessfully logged into Discord as "{client.user}"\nAwaiting user input...')
+    if not send_daily_message.is_running():
+        send_daily_message.start()
     await client.change_presence(status=discord.Status.online,
                                  activity=discord.Activity(
                                      type=discord.ActivityType.playing,
                                      name="我是帥哥誠"))
-
 
 @client.hybrid_command(name='whatdinner', description='問帥哥誠晚餐吃啥的開關')
 async def whatdinner(ctx):
@@ -259,64 +235,58 @@ async def whatdinner(ctx):
         else:
             send_daily_message.cancel()
             await ctx.send("已停止每天詢問。")
-    
 
 @client.hybrid_command(name='dinner', description='問帥哥誠晚餐該吃啥')
 async def dinner(ctx):
-    food = random.choice(dinner_candidates)
-    await ctx.send(food)
+    await ctx.send(random.choice(DINNER_CANDIDATES))
 
 @client.hybrid_command(name='list', description='列出晚餐候選')
 async def dinner_list(ctx):
-    str_candidates=', '.join(dinner_candidates)
-    await ctx.send(str_candidates)
+    await ctx.send(', '.join(DINNER_CANDIDATES))
 
 @client.hybrid_command(name='add', description='增加晚餐選項')
-async def add_dinner(ctx,food):
-    if food in dinner_candidates:
+async def add_dinner(ctx, food: str):
+    food = food.strip()
+    if food in DINNER_CANDIDATES:
         await ctx.send(f"{food}已在晚餐選項裡")
         return
-    dinner_candidates.append(food)
-    save_dinner_candidates(dinner_candidates)
+    DINNER_CANDIDATES.append(food)
+    save_dinner_candidates(DINNER_CANDIDATES)
     await ctx.send(f"已增加 {food}")
 
 @client.hybrid_command(name='delete', description='刪除晚餐選項')
-async def delete_dinner(ctx,food):
-    if food not in dinner_candidates:
+async def delete_dinner(ctx, food: str):
+    food = food.strip()
+    if food not in DINNER_CANDIDATES:
         await ctx.send(f"{food}不在晚餐選項裡")
         return
-    dinner_candidates.remove(food)
-    save_dinner_candidates(dinner_candidates)
+    DINNER_CANDIDATES.remove(food)
+    save_dinner_candidates(DINNER_CANDIDATES)
     await ctx.send(f"已刪除 {food}")
 
 @client.hybrid_command(name='remain', description='問老大何時日本')
 async def remain(ctx):
     remain_days = (datetime.datetime(2025, 9, 6, tzinfo=TAIPEI_TZ) - get_now()).days
-    if remain_days>0:
+    if remain_days > 0:
         await ctx.send(f"離老大日本還有{remain_days}天")
     else:
         await ctx.send("老大已經在日本爽了 <:Kreygasm:527748250900496384>")
 
-@client.hybrid_command(name='sync',
-                       description='sync commands')
+@client.hybrid_command(name='sync', description='sync commands')
 @commands.is_owner()
 @commands.dm_only()
 async def sync(ctx):
     synced = await ctx.bot.tree.sync()
     await ctx.send(f"Synced {len(synced)} commands globally.")
 
-
-@client.hybrid_command(name='update',
-                       description='update the bot')
+@client.hybrid_command(name='update', description='update the bot')
 @commands.is_owner()
 @commands.dm_only()
 async def update(ctx):
     await ctx.send('Updating bot....')
     _ = subprocess.call(["bash", "/home/ubuntu/update_bot.sh"])
 
-
-@client.hybrid_command(name='shell',
-                       description='run a shell command')
+@client.hybrid_command(name='shell', description='run a shell command')
 @commands.is_owner()
 @commands.dm_only()
 async def shell(ctx, command):
@@ -324,9 +294,7 @@ async def shell(ctx, command):
     result = subprocess.run(command, capture_output=True, text=True).stdout.strip("\n")
     await ctx.send(result)
 
-
-@client.hybrid_command(name='rate',
-                       description='輸出帥哥誠的回應率')
+@client.hybrid_command(name='rate', description='輸出帥哥誠的回應率')
 async def rate(ctx):
     await ctx.send(f'`帥哥誠現在的回應率是: {get_rate():.3f}`')
 
@@ -337,23 +305,17 @@ async def poll(ctx, title: str, options: str, multiple_choice: bool = False):
     if len(option_list) < 2:
         await ctx.send("請提供至少兩個選項。")
         return
-    
     if len(option_list) != len(set(option_list)):
         await ctx.send("選項不能重複。")
         return
         
     view = PollView(title, option_list, multiple_choice)
-    embed = view.create_embed()
-    await ctx.send(embed=embed, view=view)
+    await ctx.send(embed=view.create_embed(), view=view)
 
-@tasks.loop(time=datetime.time(hour=10, tzinfo=t))
+@tasks.loop(time=datetime.time(hour=10, tzinfo=TAIPEI_TZ))
 async def send_morning_message():
-    is_weekday = datetime.datetime.today().astimezone(t).weekday() < 5
-    
-    if is_weekday:
-        channel_id = 461180385972322306
-        channel = client.get_channel(channel_id)
-        
+    if get_now().weekday() < 5:
+        channel = client.get_channel(461180385972322306)
         remain_days = (datetime.datetime(2025, 1, 20, tzinfo=TAIPEI_TZ) - get_now()).days
         
         greetings = [
@@ -370,9 +332,7 @@ async def send_morning_message():
             "大家工作加油!"
         ]
         
-        greeting_message = random.choice(greetings)
-        
-        await channel.send(f"{greeting_message} 離哲誠出獄還有{remain_days}天")
+        await channel.send(f"{random.choice(greetings)} 離哲誠出獄還有{remain_days}天")
     
 @client.hybrid_command(name='toggle_morning_message', description='開關每天早上10點的問候訊息')
 async def toggle_morning_message(ctx):
@@ -382,17 +342,17 @@ async def toggle_morning_message(ctx):
     else:
         send_morning_message.cancel()
         await ctx.send("已停止每天早上10點的問候訊息。")
-        
+
 @client.event
 async def on_command_error(ctx, exception):
     if isinstance(exception, commands.CommandOnCooldown):
-        # 將總秒數換算成分鐘與秒數
         minutes, seconds = divmod(int(exception.retry_after), 60)
         time_str = f"{minutes} 分 {seconds} 秒" if minutes > 0 else f"{seconds} 秒"
-        
-        # ephemeral=True 代表這則訊息只有觸發指令的人看得到，不會洗頻
         await ctx.send(f"⏳ 賭場休息中！請等待 **{time_str}** 後再試。", ephemeral=True)
-        
+    elif isinstance(exception, commands.MissingRequiredArgument):
+        await ctx.send("❌ 缺少參數！請確認指令格式。", ephemeral=True)
+    elif isinstance(exception, commands.BadArgument):
+        await ctx.send("❌ 參數格式錯誤！", ephemeral=True)
     elif isinstance(exception, commands.NotOwner):
         await ctx.send("This is an admin only command.")
     elif isinstance(exception, commands.PrivateMessageOnly):
@@ -402,9 +362,7 @@ async def on_command_error(ctx, exception):
 
 @client.hybrid_command(name='free', description='查看哲誠米蟲的天數')
 async def free(ctx):
-    free_date = datetime.datetime(2025, 8, 1, tzinfo=TAIPEI_TZ)
-    today = get_now()
-    elapsed = today - free_date
+    elapsed = get_now() - datetime.datetime(2025, 8, 1, tzinfo=TAIPEI_TZ)
     await ctx.send(f"今天是哲誠當米蟲的第 {elapsed.days} 天。")
 
 @client.hybrid_command(name='nextholiday', description='查看下一個連假')
@@ -418,9 +376,7 @@ async def nextholiday(ctx):
 
     today = get_now().date()
     today_str = today.strftime('%Y-%m-%d')
-    
     response_lines = []
-    
     today_holiday_name = holidays.get(today_str)
     
     if today_holiday_name:
@@ -433,7 +389,6 @@ async def nextholiday(ctx):
         if date_str > today_str:
             if today_holiday_name and name == today_holiday_name:
                 continue
-                
             next_holiday_date_str = date_str
             next_holiday_name = name
             break
@@ -441,7 +396,6 @@ async def nextholiday(ctx):
     if next_holiday_date_str:
         next_date = datetime.datetime.strptime(next_holiday_date_str, '%Y-%m-%d').date()
         days_left = (next_date - today).days
-        
         response_lines.append(f"📅 下一個連假是 **{next_holiday_name}** ({next_holiday_date_str})")
         response_lines.append(f"⏳ 距離現在還有 **{days_left}** 天")
     else:
@@ -459,52 +413,54 @@ async def toggle_holiday(ctx):
 
 @client.event
 async def on_message(message):
-    global REPLY_RATE, t_old, t_new, skull_count, emojis
+    global REPLY_RATE, T_OLD, T_NEW, SKULL_COUNT, EMOJIS
     
-    if message.author.id==424569079278338059:
-        for ej,count in skull_count.items():
-            if ej in message.content  :
-                count=count+1
-                skull_count[ej]=count
-                with open('skull_count.json','w') as f:
-                    json.dump(skull_count,f)
+    if message.author.id == 424569079278338059:
+        for ej, count in SKULL_COUNT.items():
+            if ej in message.content:
+                count = count + 1
+                SKULL_COUNT[ej] = count
+                with open('skull_count.json', 'w') as f:
+                    json.dump(SKULL_COUNT, f)
                 await message.channel.send(f"哲誠已經{ej}了{count}次")
 
     if message.content.startswith("誠"):
         REPLY_RATE = get_rate()
-        t_old = t_new
+        T_OLD = T_NEW
 
         if "在幹啥" in message.content:
             await message.channel.send("<a:owofonje:1151089087760052234>")
         elif "晚餐" in message.content:
-            await message.channel.send(random.choice(dinner_candidates))
+            await message.channel.send(random.choice(DINNER_CANDIDATES))
         elif "還是" in message.content:
-            tmp = re.sub('^誠 ?','',re.sub('你+','我',message.content))
+            tmp = re.sub('^誠 ?', '', re.sub('你+', '我', message.content))
             options = tmp.split('還是')
             await message.channel.send(random.choice(options))
         elif random.random() < REPLY_RATE:
-            for number,id in enumerate(ID_list):
-                if (message.author.id == id) and len(re.sub('\s','',message.content))==1:
-                    await message.channel.send(Response_list[number])
+            for number, user_id in enumerate(ID_LIST):
+                if (message.author.id == user_id) and len(re.sub(r'\s', '', message.content)) == 1:
+                    await message.channel.send(RESPONSE_LIST[number])
                     break
             else:
-                if random.random()>0.1:
-                    await message.channel.send("<a:MarineDance:984255206139248670>")
-                else:
-                    await message.channel.send("<:sad:913344603497828413>")                    
-    if message.content.startswith(emoji(emojis[0])) and message.author != client.user: 
-        REPLY_RATE = get_rate()
-        
-        if random.random() < REPLY_RATE:
-            for number,id in enumerate(ID_list):
-                if (message.author.id == id):
-                    await message.channel.send(emoji(emojis[number]))
-                    break
-            else:
-                if random.random()>0.1:
+                if random.random() > 0.1:
                     await message.channel.send("<a:MarineDance:984255206139248670>")
                 else:
                     await message.channel.send("<:sad:913344603497828413>")
+                    
+    if message.content.startswith(emoji(EMOJIS[0])) and message.author != client.user: 
+        REPLY_RATE = get_rate()
+        
+        if random.random() < REPLY_RATE:
+            for number, user_id in enumerate(ID_LIST):
+                if (message.author.id == user_id):
+                    await message.channel.send(emoji(EMOJIS[number]))
+                    break
+            else:
+                if random.random() > 0.1:
+                    await message.channel.send("<a:MarineDance:984255206139248670>")
+                else:
+                    await message.channel.send("<:sad:913344603497828413>")
+                    
     await client.process_commands(message)
 
 def update_user_coins(user_id, amount=1):
@@ -527,15 +483,13 @@ def update_user_coins(user_id, amount=1):
 async def on_raw_reaction_add(payload):
     global DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS, DAILY_EVENT_TYPE
 
-    # 基本檢查
     if DAILY_MESSAGE_ID is None or payload.message_id != DAILY_MESSAGE_ID:
         return
-    if payload.user_id == client.user.id:  # 忽略機器人自己加的反應
+    if payload.user_id == client.user.id:
         return
     if payload.user_id in DAILY_CLAIMED_USERS:
         return
 
-    # 依照活動類型決定名額
     max_users = 3 if DAILY_EVENT_TYPE == 'weekday' else 5
     if len(DAILY_CLAIMED_USERS) >= max_users:
         return
@@ -543,7 +497,6 @@ async def on_raw_reaction_add(payload):
     channel = client.get_channel(payload.channel_id)
     emoji_clicked = str(payload.emoji)
 
-    # === 假日賭博盲盒邏輯 ===
     if DAILY_EVENT_TYPE == 'holiday':
         if emoji_clicked == "🤑":
             amount = 5 if random.random() < 0.2 else 0
@@ -555,10 +508,8 @@ async def on_raw_reaction_add(payload):
             amount = 1
             choice_text = "求穩"
         else:
-            # 如果使用者點了不是這三個表情符號的反應，直接忽略，讓他可以重點
             return
             
-        # 紀錄已領取 (扣除名額)
         DAILY_CLAIMED_USERS.add(payload.user_id)
         spots_left = max_users - len(DAILY_CLAIMED_USERS)
         
@@ -566,10 +517,9 @@ async def on_raw_reaction_add(payload):
             new_balance = update_user_coins(payload.user_id, amount)
             await channel.send(f"🎰 <@{payload.user_id}> 選擇了【{choice_text}】... 恭喜中獎！獲得 **{amount}** 枚折成幣！ (目前: {new_balance})。剩餘名額: {spots_left}")
         else:
-            new_balance = update_user_coins(payload.user_id, 0) # 為了取得餘額顯示
+            new_balance = update_user_coins(payload.user_id, 0)
             await channel.send(f"💨 <@{payload.user_id}> 選擇了【{choice_text}】... 沒中！一毛都沒拿到 幫QQ (目前: {new_balance})。剩餘名額: {spots_left}")
 
-    # === 平日一般打卡邏輯 ===
     else:
         DAILY_CLAIMED_USERS.add(payload.user_id)
         new_balance = update_user_coins(payload.user_id, 1)
@@ -586,15 +536,13 @@ async def wallet(ctx):
     
     balance = data.get(str(ctx.author.id), 0)
     await ctx.send(f"<@{ctx.author.id}> 你目前擁有 {balance} 枚折成幣 💰")
-    
-# --- 經濟與娛樂系統 ---
+
 @client.hybrid_command(name='gamble', description='賭博：輸入金額，骰出 >50 翻倍，否則歸零')
 @commands.cooldown(1, 3600, commands.BucketType.user)
 async def gamble(ctx, amount: int):
-    # 失敗情況 1：輸入負數或 0
     if amount <= 0:
         await ctx.send("❌ 賭注必須大於 0")
-        ctx.command.reset_cooldown(ctx)  # 👈 退還冷卻時間
+        ctx.command.reset_cooldown(ctx)
         return
         
     try:
@@ -605,13 +553,11 @@ async def gamble(ctx, amount: int):
         
     current_balance = data.get(str(ctx.author.id), 0)
     
-    # 失敗情況 2：餘額不足
     if amount > current_balance:
         await ctx.send(f"❌ 你的錢不夠！你只有 {current_balance} 枚折成幣。")
-        ctx.command.reset_cooldown(ctx)  # 👈 退還冷卻時間
+        ctx.command.reset_cooldown(ctx)
         return
         
-    # 如果順利通過以上檢查，進入真正賭博，就不退還冷卻時間了
     roll = random.randint(1, 100)
     if roll > 50:
         new_balance = update_user_coins(ctx.author.id, amount)
