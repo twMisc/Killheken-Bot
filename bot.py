@@ -40,6 +40,7 @@ MY_TOKEN = token
 MY_GUILD_ID = discord.Object(guild)
 
 #dinner_candidates = ['拉', '咖哩', '肯', '麥', '摩', '大的']
+t = datetime.timezone(datetime.timedelta(hours=8))
 Response_list = ['誠', '大', '豪', '翔', '抹茶']
 REPLY_RATE = 0.65
 HOLIDAY_MODE = False
