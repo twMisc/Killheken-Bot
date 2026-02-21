@@ -31,7 +31,7 @@ MY_TOKEN = token
 MY_GUILD_ID = discord.Object(guild)
 
 #dinner_candidates = ['拉', '咖哩', '肯', '麥', '摩', '大的']
-t = datetime.timezone(datetime.timedelta(hours=8))
+TAIPEI_TZ = datetime.timezone(datetime.timedelta(hours=8))
 Response_list = ['誠', '大', '豪', '翔', '抹茶']
 REPLY_RATE = 0.65
 HOLIDAY_MODE = False
@@ -48,6 +48,10 @@ intents.guilds=True
 intents.members=True
 client = commands.Bot(command_prefix='$', intents=intents)
 client.owner_ids = ADMIN_LIST
+
+def get_now():
+    """Returns the current timezone-aware datetime in Taiwan."""
+    return datetime.datetime.now(TAIPEI_TZ)
 
 class PollView(View):
     def __init__(self, title, options, multiple_choice=False):
@@ -171,7 +175,7 @@ def get_today_holiday():
     try:
         with open(HOLIDAY_FILE, 'r', encoding='utf-8') as f:
             holidays = json.load(f)
-        today_str = datetime.datetime.now(t).strftime('%Y-%m-%d')
+        today_str = get_now().strftime('%Y-%m-%d')
         return holidays.get(today_str)
     except:
         return None
@@ -180,7 +184,7 @@ def get_today_holiday():
 async def send_daily_message():
     global HOLIDAY_MODE, DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS, DAILY_EVENT_TYPE
     
-    is_weekday = datetime.datetime.today().astimezone(t).weekday() < 5
+    is_weekday = get_now().weekday() < 5
     channel_id = 461180385972322306
     channel = client.get_channel(channel_id)
     
@@ -287,7 +291,7 @@ async def delete_dinner(ctx,food):
 
 @client.hybrid_command(name='remain', description='問老大何時日本')
 async def remain(ctx):
-    remain_days=(datetime.datetime(2025,9,6)-datetime.datetime.now()).days
+    remain_days = (datetime.datetime(2025, 9, 6, tzinfo=TAIPEI_TZ) - get_now()).days
     if remain_days>0:
         await ctx.send(f"離老大日本還有{remain_days}天")
     else:
@@ -350,7 +354,7 @@ async def send_morning_message():
         channel_id = 461180385972322306
         channel = client.get_channel(channel_id)
         
-        remain_days = (datetime.datetime(2025, 1, 20) - datetime.datetime.now()).days
+        remain_days = (datetime.datetime(2025, 1, 20, tzinfo=TAIPEI_TZ) - get_now()).days
         
         greetings = [
             "早安，大家！哲誠祝你們有個美好的一天！",
@@ -398,8 +402,8 @@ async def on_command_error(ctx, exception):
 
 @client.hybrid_command(name='free', description='查看哲誠米蟲的天數')
 async def free(ctx):
-    free_date = datetime.datetime(2025, 8, 1).astimezone(t)
-    today = datetime.datetime.now().astimezone(t)
+    free_date = datetime.datetime(2025, 8, 1, tzinfo=TAIPEI_TZ)
+    today = get_now()
     elapsed = today - free_date
     await ctx.send(f"今天是哲誠當米蟲的第 {elapsed.days} 天。")
 
@@ -412,7 +416,7 @@ async def nextholiday(ctx):
         await ctx.send("找不到假日名單。")
         return
 
-    today = datetime.datetime.now(t).date()
+    today = get_now().date()
     today_str = today.strftime('%Y-%m-%d')
     
     response_lines = []
@@ -649,7 +653,7 @@ async def hongbao(ctx):
         return
 
     user_id = ctx.author.id
-    today_str = datetime.datetime.now(t).strftime('%Y-%m-%d')
+    today_str = get_now().strftime('%Y-%m-%d')
 
     try:
         with open(HONGBAO_FILE, 'r') as f:
