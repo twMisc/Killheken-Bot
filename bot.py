@@ -47,6 +47,8 @@ DAILY_MESSAGE_ID = None
 DAILY_CLAIMED_USERS = set()
 COIN_FILE = 'coins.json'
 HOLIDAY_FILE = 'holidays.json'
+DAILY_EVENT_TYPE = 'weekday'
+
 intents = discord.Intents().all()
 intents.presences=True
 intents.guilds=True
@@ -181,26 +183,42 @@ def get_today_holiday():
     except:
         return None
         
-t=datetime.timezone(datetime.timedelta(hours=8))
-@tasks.loop(time=datetime.time(hour=18,tzinfo=t))
+@tasks.loop(time=datetime.time(hour=18, tzinfo=t))
 async def send_daily_message():
-    global HOLIDAY_MODE, DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS
+    global HOLIDAY_MODE, DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS, DAILY_EVENT_TYPE
+    
     is_weekday = datetime.datetime.today().astimezone(t).weekday() < 5
     channel_id = 461180385972322306
-    channel = client.get_channel(channel_id)   
-
+    channel = client.get_channel(channel_id)
+    
     today_holiday = get_today_holiday()
     
-    if HOLIDAY_MODE:
-        await channel.send("大家起來 Game")
-    elif today_holiday:
-        await channel.send(f"大家起來 Game")
-    elif is_weekday:
-        msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前3名按反應領折成幣!)")
+    # 只要是連假、手動放假、或是週末 (not is_weekday)，就觸發假日抽獎！
+    if HOLIDAY_MODE or today_holiday or not is_weekday:
+        DAILY_EVENT_TYPE = 'holiday'
+        holiday_name = today_holiday if today_holiday else ("連假" if HOLIDAY_MODE else "週末")
+        
+        msg = await channel.send(
+            f"大家起來 Game ({holiday_name}) 🎉 假日限定抽獎！(前 5 名)\n"
+            f"請點擊下方反應選擇你的命運：\n"
+            f"🤑 **大賭** (20% 中 5 幣，80% 摃龜)\n"
+            f"🎲 **小賭** (50% 中 2 幣，50% 摃龜)\n"
+            f"🪙 **求穩** (保底領 1 幣)"
+        )
         DAILY_MESSAGE_ID = msg.id
         DAILY_CLAIMED_USERS.clear()
+        
+        # 機器人自動加上選項反應
+        await msg.add_reaction("🤑")
+        await msg.add_reaction("🎲")
+        await msg.add_reaction("🪙")
+        
     else:
-        await channel.send("大家晚餐吃啥")
+        # 平日一般打卡
+        DAILY_EVENT_TYPE = 'weekday'
+        msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前 3 名按反應領 1 枚折成幣!)")
+        DAILY_MESSAGE_ID = msg.id
+        DAILY_CLAIMED_USERS.clear()
 
 def save_dinner_candidates(candidates_list):
     with open('dinner_candidates.json', 'w') as file:
@@ -521,26 +539,56 @@ def update_user_coins(user_id, amount=1):
 
 @client.event
 async def on_raw_reaction_add(payload):
-    global DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS
+    global DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS, DAILY_EVENT_TYPE
 
+    # 基本檢查
     if DAILY_MESSAGE_ID is None or payload.message_id != DAILY_MESSAGE_ID:
         return
-
-    if payload.user_id == client.user.id:
+    if payload.user_id == client.user.id:  # 忽略機器人自己加的反應
         return
-
     if payload.user_id in DAILY_CLAIMED_USERS:
         return
 
-    if len(DAILY_CLAIMED_USERS) >= 3:
+    # 依照活動類型決定名額
+    max_users = 3 if DAILY_EVENT_TYPE == 'weekday' else 5
+    if len(DAILY_CLAIMED_USERS) >= max_users:
         return
 
-    DAILY_CLAIMED_USERS.add(payload.user_id)
-    new_balance = update_user_coins(payload.user_id)
-    spots_left = 3 - len(DAILY_CLAIMED_USERS)
-    
     channel = client.get_channel(payload.channel_id)
-    await channel.send(f"💰 <@{payload.user_id}> 下班打卡成功！獲得 1 折成幣 (目前: {new_balance})。剩餘名額: {spots_left}")
+    emoji_clicked = str(payload.emoji)
+
+    # === 假日賭博盲盒邏輯 ===
+    if DAILY_EVENT_TYPE == 'holiday':
+        if emoji_clicked == "🤑":
+            amount = 5 if random.random() < 0.2 else 0
+            choice_text = "大賭"
+        elif emoji_clicked == "🎲":
+            amount = 2 if random.random() < 0.5 else 0
+            choice_text = "小賭"
+        elif emoji_clicked == "🪙":
+            amount = 1
+            choice_text = "求穩"
+        else:
+            # 如果使用者點了不是這三個表情符號的反應，直接忽略，讓他可以重點
+            return
+            
+        # 紀錄已領取 (扣除名額)
+        DAILY_CLAIMED_USERS.add(payload.user_id)
+        spots_left = max_users - len(DAILY_CLAIMED_USERS)
+        
+        if amount > 0:
+            new_balance = update_user_coins(payload.user_id, amount)
+            await channel.send(f"🎰 <@{payload.user_id}> 選擇了【{choice_text}】... 恭喜中獎！獲得 **{amount}** 枚折成幣！ (目前: {new_balance})。剩餘名額: {spots_left}")
+        else:
+            new_balance = update_user_coins(payload.user_id, 0) # 為了取得餘額顯示
+            await channel.send(f"💨 <@{payload.user_id}> 選擇了【{choice_text}】... 沒中！一毛都沒拿到 幫QQ (目前: {new_balance})。剩餘名額: {spots_left}")
+
+    # === 平日一般打卡邏輯 ===
+    else:
+        DAILY_CLAIMED_USERS.add(payload.user_id)
+        new_balance = update_user_coins(payload.user_id, 1)
+        spots_left = max_users - len(DAILY_CLAIMED_USERS)
+        await channel.send(f"💰 <@{payload.user_id}> 下班打卡成功！獲得 1 折成幣 (目前: {new_balance})。剩餘名額: {spots_left}")
 
 @client.hybrid_command(name='wallet', description='查看你的折成幣數量')
 async def wallet(ctx):
