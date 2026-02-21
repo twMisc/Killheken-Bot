@@ -14,3 +14,9 @@ We will still do some updates according to Killheken's daily life :D
 
 I'm free! No more fucking work! (by Killheken)
 Maybe it's time for this bot to evolve — into twMisc's bot :)
+
+-------
+
+## Disclaimer
+
+Some code snippets in this project were authored using Large Language Models.
