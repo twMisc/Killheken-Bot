@@ -49,6 +49,7 @@ DAILY_CLAIMED_USERS = set()
 COIN_FILE = 'coins.json'
 HOLIDAY_FILE = 'holidays.json'
 DAILY_EVENT_TYPE = 'weekday'
+HONGBAO_FILE = 'hongbao.json'
 
 intents = discord.Intents().all()
 intents.presences=True
@@ -603,14 +604,13 @@ async def wallet(ctx):
     await ctx.send(f"<@{ctx.author.id}> 你目前擁有 {balance} 枚折成幣 💰")
     
 # --- 經濟與娛樂系統 ---
-
-HONGBAO_FILE = 'hongbao.json'
-
 @client.hybrid_command(name='gamble', description='賭博：輸入金額，骰出 >50 翻倍，否則歸零')
-@commands.cooldown(1, 3600, commands.BucketType.user)  # 👈 1 代表次數，3600 代表秒數 (1小時)
+@commands.cooldown(1, 3600, commands.BucketType.user)
 async def gamble(ctx, amount: int):
+    # 失敗情況 1：輸入負數或 0
     if amount <= 0:
         await ctx.send("❌ 賭注必須大於 0")
+        ctx.command.reset_cooldown(ctx)  # 👈 退還冷卻時間
         return
         
     try:
@@ -621,10 +621,13 @@ async def gamble(ctx, amount: int):
         
     current_balance = data.get(str(ctx.author.id), 0)
     
+    # 失敗情況 2：餘額不足
     if amount > current_balance:
         await ctx.send(f"❌ 你的錢不夠！你只有 {current_balance} 枚折成幣。")
+        ctx.command.reset_cooldown(ctx)  # 👈 退還冷卻時間
         return
         
+    # 如果順利通過以上檢查，進入真正賭博，就不退還冷卻時間了
     roll = random.randint(1, 100)
     if roll > 50:
         new_balance = update_user_coins(ctx.author.id, amount)
