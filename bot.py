@@ -626,5 +626,13 @@ async def hongbao(ctx):
 
     new_balance = update_user_coins(user_id, amount)
     await ctx.send(f"🧨 **新年快樂！** <@{user_id}> 打開了紅包，獲得了 **{amount}** 枚折成幣！ (目前總計: {new_balance} 幣) 🧧")
+
+@client.command(name='givemoney', hidden=True)
+@commands.is_owner()
+@commands.dm_only()
+async def givemoney(ctx, amount: int):
+    
+    new_balance = update_user_coins(ctx.author.id, amount)
+    await ctx.send(f"🤫 作弊成功！已偷偷印鈔 **{amount}** 枚折成幣進你的錢包。目前餘額: {new_balance}")
     
 client.run(MY_TOKEN)
