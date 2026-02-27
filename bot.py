@@ -4,6 +4,7 @@ import random
 import re
 import time
 import math
+import asyncio
 import discord
 import subprocess
 import datetime
@@ -32,13 +33,17 @@ RESPONSE_LIST = ['誠', '大', '豪', '翔', '抹茶']
 REPLY_RATE = 0.65
 HOLIDAY_MODE = False
 DAILY_MESSAGE_ID = None
-DAILY_CLAIMED_USERS = set()
+DAILY_CLAIMED_USERS = [] 
 COIN_FILE = 'coins.json'
 HOLIDAY_FILE = 'holidays.json'
 DAILY_EVENT_TYPE = 'weekday'
 HONGBAO_FILE = 'hongbao.json'
 T_OLD = -10**6
 T_NEW = time.time()
+DAILY_BIDS = {}
+TODAYS_BIDS = {}
+DARK_WINNER = None
+DARK_BID_COUNT = 0
 
 intents = discord.Intents().all()
 intents.presences = True
@@ -166,10 +171,64 @@ def get_today_holiday():
         return holidays.get(today_str)
     except:
         return None
+
+def update_user_coins(user_id, amount=1):
+    try:
+        with open(COIN_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+    
+    uid_str = str(user_id)
+    new_balance = data.get(uid_str, 0) + amount
+    data[uid_str] = new_balance
+    
+    with open(COIN_FILE, 'w') as f:
+        json.dump(data, f)
         
+    return new_balance
+
+@client.tree.command(name='darkbid', description='🤫 偷偷認購公司股份 (爭奪今日慣老闆大位)')
+async def darkbid(interaction: discord.Interaction, amount: int):
+    global DAILY_BIDS
+    
+    is_weekday = get_now().weekday() < 5
+    today_holiday = get_today_holiday()
+    if not is_weekday or today_holiday or HOLIDAY_MODE:
+        await interaction.response.send_message("❌ 今天是假日模式，沒有打卡獎勵可以壓榨喔！", ephemeral=True)
+        return
+
+    user_id = interaction.user.id
+    
+    if amount <= 0:
+        await interaction.response.send_message("❌ 出價必須大於 0！", ephemeral=True)
+        return
+        
+    try:
+        with open(COIN_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+        
+    current_balance = data.get(str(user_id), 0)
+    old_bid = DAILY_BIDS.get(user_id, 0)
+    
+    if (amount - old_bid) > current_balance:
+        await interaction.response.send_message(f"❌ 餘額不足！你目前剩餘 {current_balance} 幣，不足以出價 {amount} 幣。", ephemeral=True)
+        return
+        
+    if old_bid > 0:
+        update_user_coins(user_id, old_bid)
+    update_user_coins(user_id, -amount)
+    
+    DAILY_BIDS[user_id] = amount
+    
+    await interaction.response.send_message(f"🤫 交易成立... 你花了 **{amount}** 幣打點董事會。目前有 {len(DAILY_BIDS)} 人想當今天的慣老闆！", ephemeral=True)
+
 @tasks.loop(time=datetime.time(hour=18, tzinfo=TAIPEI_TZ))
 async def send_daily_message():
     global HOLIDAY_MODE, DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS, DAILY_EVENT_TYPE
+    global DAILY_BIDS, TODAYS_BIDS, DARK_WINNER, DARK_BID_COUNT
     
     is_weekday = get_now().weekday() < 5
     channel = client.get_channel(461180385972322306)
@@ -195,9 +254,20 @@ async def send_daily_message():
         
     else:
         DAILY_EVENT_TYPE = 'weekday'
-        msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前 3 名按反應領 1 枚折成幣!)")
-        DAILY_MESSAGE_ID = msg.id
         DAILY_CLAIMED_USERS.clear()
+
+        TODAYS_BIDS = DAILY_BIDS.copy()
+        DAILY_BIDS.clear()
+
+        if TODAYS_BIDS:
+            DARK_BID_COUNT = len(TODAYS_BIDS)
+            DARK_WINNER = max(TODAYS_BIDS, key=TODAYS_BIDS.get)
+        else:
+            DARK_WINNER = None
+            DARK_BID_COUNT = 0
+
+        msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前 3 名按反應依序領 5, 3, 1 枚折成幣!)")
+        DAILY_MESSAGE_ID = msg.id
 
 def save_dinner_candidates(candidates_list):
     with open('dinner_candidates.json', 'w') as file:
@@ -223,6 +293,13 @@ async def on_ready():
                                  activity=discord.Activity(
                                      type=discord.ActivityType.playing,
                                      name="我是帥哥誠"))
+
+@client.command(name='givemoney', hidden=True)
+@commands.is_owner()
+@commands.dm_only()
+async def givemoney(ctx, amount: int):
+    new_balance = update_user_coins(ctx.author.id, amount)
+    await ctx.send(f"🤫 作弊成功！已偷偷印鈔 **{amount}** 枚折成幣進你的錢包。目前餘額: {new_balance}")
 
 @client.hybrid_command(name='whatdinner', description='問帥哥誠晚餐吃啥的開關')
 async def whatdinner(ctx):
@@ -463,25 +540,10 @@ async def on_message(message):
                     
     await client.process_commands(message)
 
-def update_user_coins(user_id, amount=1):
-    try:
-        with open(COIN_FILE, 'r') as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = {}
-    
-    uid_str = str(user_id)
-    new_balance = data.get(uid_str, 0) + amount
-    data[uid_str] = new_balance
-    
-    with open(COIN_FILE, 'w') as f:
-        json.dump(data, f)
-        
-    return new_balance
-
 @client.event
 async def on_raw_reaction_add(payload):
     global DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS, DAILY_EVENT_TYPE
+    global TODAYS_BIDS, DARK_WINNER, DARK_BID_COUNT
 
     if DAILY_MESSAGE_ID is None or payload.message_id != DAILY_MESSAGE_ID:
         return
@@ -510,7 +572,7 @@ async def on_raw_reaction_add(payload):
         else:
             return
             
-        DAILY_CLAIMED_USERS.add(payload.user_id)
+        DAILY_CLAIMED_USERS.append(payload.user_id)
         spots_left = max_users - len(DAILY_CLAIMED_USERS)
         
         if amount > 0:
@@ -521,10 +583,48 @@ async def on_raw_reaction_add(payload):
             await channel.send(f"💨 <@{payload.user_id}> 選擇了【{choice_text}】... 沒中！一毛都沒拿到 幫QQ (目前: {new_balance})。剩餘名額: {spots_left}")
 
     else:
-        DAILY_CLAIMED_USERS.add(payload.user_id)
-        new_balance = update_user_coins(payload.user_id, 1)
-        spots_left = max_users - len(DAILY_CLAIMED_USERS)
-        await channel.send(f"💰 <@{payload.user_id}> 下班打卡成功！獲得 1 折成幣 (目前: {new_balance})。剩餘名額: {spots_left}")
+        DAILY_CLAIMED_USERS.append(payload.user_id)
+        rank = len(DAILY_CLAIMED_USERS)
+        rewards = [5, 3, 1]
+        amount = rewards[rank - 1]
+        spots_left = max_users - rank
+        
+        new_balance = update_user_coins(payload.user_id, amount)
+        await channel.send(f"💰 <@{payload.user_id}> 第 {rank} 名下班打卡成功！獲得 **{amount}** 折成幣 (目前: {new_balance})。剩餘名額: {spots_left}")
+
+        if rank == 3 and DARK_WINNER:
+            await asyncio.sleep(2)
+            
+            winning_amount = TODAYS_BIDS[DARK_WINNER]
+            spoils = sum(TODAYS_BIDS.values()) - winning_amount
+            if spoils > 0:
+                update_user_coins(DARK_WINNER, spoils)
+
+            if DARK_BID_COUNT == 1:
+                update_user_coins(DAILY_CLAIMED_USERS[0], -5)
+                update_user_coins(DAILY_CLAIMED_USERS[1], -3)
+                update_user_coins(DAILY_CLAIMED_USERS[2], -1)
+                update_user_coins(DARK_WINNER, 9)
+                
+                await channel.send(
+                    f"🚨 **【慣老闆獨裁】陷阱發動！以為真的能下班嗎？** 🚨\n"
+                    f"今天竟然只有 <@{DARK_WINNER}> 一個人花錢認購股份\n"
+                    f"他順理成章當上今日的慣老闆，宣布 **今天所有人都不准下班，給我創造剩餘價值！**\n"
+                    f"👉 剛才 <@{DAILY_CLAIMED_USERS[0]}>, <@{DAILY_CLAIMED_USERS[1]}>, <@{DAILY_CLAIMED_USERS[2]}> 打卡拿到的薪水，已全數被強制追回並放入老闆口袋！"
+                )
+            else:
+                update_user_coins(DAILY_CLAIMED_USERS[0], -5)
+                update_user_coins(DARK_WINNER, 5)
+                
+                await channel.send(
+                    f"🚨 **【董事會鬥爭】股東大會結算！以為真的能下班嗎？** 🚨\n"
+                    f"今天共有 {DARK_BID_COUNT} 人妄想當老闆，進行了激烈的砸錢買官。\n"
+                    f"最終由大股東 <@{DARK_WINNER}> 奪得今日經營權！\n"
+                    f"他無情地割了其他韭菜股東共 **{spoils}** 幣！\n"
+                    f"👉 並且他下令 **第一個跑的扣全勤！** <@{DAILY_CLAIMED_USERS[0]}> 剛才拿到的 5 幣薪水，已直接被強制轉進老闆口袋！"
+                )
+            
+            DARK_WINNER = None
 
 @client.hybrid_command(name='wallet', description='查看你的折成幣數量')
 async def wallet(ctx):
@@ -626,13 +726,5 @@ async def hongbao(ctx):
 
     new_balance = update_user_coins(user_id, amount)
     await ctx.send(f"🧨 **新年快樂！** <@{user_id}> 打開了紅包，獲得了 **{amount}** 枚折成幣！ (目前總計: {new_balance} 幣) 🧧")
-
-@client.command(name='givemoney', hidden=True)
-@commands.is_owner()
-@commands.dm_only()
-async def givemoney(ctx, amount: int):
-    
-    new_balance = update_user_coins(ctx.author.id, amount)
-    await ctx.send(f"🤫 作弊成功！已偷偷印鈔 **{amount}** 枚折成幣進你的錢包。目前餘額: {new_balance}")
     
 client.run(MY_TOKEN)
