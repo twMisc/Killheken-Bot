@@ -38,6 +38,7 @@ COIN_FILE = 'coins.json'
 HOLIDAY_FILE = 'holidays.json'
 DAILY_EVENT_TYPE = 'weekday'
 HONGBAO_FILE = 'hongbao.json'
+CHECKIN_FILE = 'checkin.json'
 T_OLD = -10**6
 T_NEW = time.time()
 DAILY_BIDS = {}
@@ -726,5 +727,30 @@ async def hongbao(ctx):
 
     new_balance = update_user_coins(user_id, amount)
     await ctx.send(f"🧨 **新年快樂！** <@{user_id}> 打開了紅包，獲得了 **{amount}** 枚折成幣！ (目前總計: {new_balance} 幣) 🧧")
-    
+
+@client.hybrid_command(name='checkin', description='每日簽到領取 5 折成幣')
+async def checkin(ctx):
+    user_id = ctx.author.id
+    today_str = get_now().strftime('%Y-%m-%d')
+
+    try:
+        with open(CHECKIN_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {"date": "", "claimed_users": []}
+
+    if data.get("date") != today_str:
+        data = {"date": today_str, "claimed_users": []}
+
+    if user_id in data["claimed_users"]:
+        await ctx.send("你今天已經簽到過了！明天再來吧！")
+        return
+
+    data["claimed_users"].append(user_id)
+    with open(CHECKIN_FILE, 'w') as f:
+        json.dump(data, f)
+
+    new_balance = update_user_coins(user_id, 5)
+    await ctx.send(f"✅ 簽到成功！<@{user_id}> 獲得 5 枚折成幣！(目前: {new_balance})")
+
 client.run(MY_TOKEN)
