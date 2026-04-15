@@ -39,6 +39,7 @@ HOLIDAY_FILE = 'holidays.json'
 DAILY_EVENT_TYPE = 'weekday'
 HONGBAO_FILE = 'hongbao.json'
 CHECKIN_FILE = 'checkin.json'
+STEAL_FILE = 'steal.json'
 T_OLD = -10**6
 T_NEW = time.time()
 DAILY_BIDS = {}
@@ -752,5 +753,73 @@ async def checkin(ctx):
 
     new_balance = update_user_coins(user_id, 5)
     await ctx.send(f"✅ 簽到成功！<@{user_id}> 獲得 5 枚折成幣！(目前: {new_balance})")
+
+@client.hybrid_command(name='steal', description='偷別人的折成幣 (每天限一次，隨機 0~5 枚)')
+async def steal(ctx, member: discord.Member):
+    if member.id == ctx.author.id:
+        await ctx.send("❌ 你不能偷自己的錢！")
+        return
+    
+    if member.bot:
+        await ctx.send("❌ 你不能偷機器人的錢！")
+        return
+
+    user_id = ctx.author.id
+    today_str = get_now().strftime('%Y-%m-%d')
+
+    # 每日限制檢查
+    try:
+        with open(STEAL_FILE, 'r') as f:
+            steal_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        steal_data = {"date": "", "claimed_users": []}
+
+    if steal_data.get("date") != today_str:
+        steal_data = {"date": today_str, "claimed_users": []}
+
+    if user_id in steal_data["claimed_users"]:
+        await ctx.send("🕵️ 你今天已經偷過錢了！適可而止吧，明天再來。")
+        return
+
+    # 目標餘額檢查
+    try:
+        with open(COIN_FILE, 'r') as f:
+            coins_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        coins_data = {}
+    
+    target_id_str = str(member.id)
+    target_balance = coins_data.get(target_id_str, 0)
+    
+    if target_balance <= 0:
+        await ctx.send(f"❌ <@{member.id}> 身上一毛錢都沒有，是要偷個毛？")
+        return
+
+    # 偷竊邏輯
+    max_steal = min(5, target_balance)
+    amount = random.randint(0, max_steal)
+    
+    # 更新雙方餘額
+    if amount > 0:
+        update_user_coins(member.id, -amount)
+        new_balance = update_user_coins(ctx.author.id, amount)
+    else:
+        # 如果偷到 0，也要從資料庫讀取當前餘額以顯示在訊息中
+        try:
+            with open(COIN_FILE, 'r') as f:
+                coins_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            coins_data = {}
+        new_balance = coins_data.get(str(ctx.author.id), 0)
+    
+    # 紀錄今日已偷竊
+    steal_data["claimed_users"].append(user_id)
+    with open(STEAL_FILE, 'w') as f:
+        json.dump(steal_data, f)
+        
+    if amount > 0:
+        await ctx.send(f"🥷 <@{ctx.author.id}> 趁著 <@{member.id}> 不注意，偷偷摸走了 **{amount}** 枚折成幣！(目前總計: {new_balance} 幣)")
+    else:
+        await ctx.send(f"💨 <@{ctx.author.id}> 剛伸手進 <@{member.id}> 的口袋，就被對方發現了！只好尷尬地收手，一毛錢都沒偷到... (目前總計: {new_balance} 幣)")
 
 client.run(MY_TOKEN)
