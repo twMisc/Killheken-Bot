@@ -40,6 +40,7 @@ DAILY_EVENT_TYPE = 'weekday'
 HONGBAO_FILE = 'hongbao.json'
 CHECKIN_FILE = 'checkin.json'
 STEAL_FILE = 'steal.json'
+GAMBLE_STATS_FILE = 'gamble_stats.json'
 T_OLD = -10**6
 T_NEW = time.time()
 DAILY_BIDS = {}
@@ -639,6 +640,27 @@ async def wallet(ctx):
     balance = data.get(str(ctx.author.id), 0)
     await ctx.send(f"<@{ctx.author.id}> 你目前擁有 {balance} 枚折成幣 💰")
 
+def update_gamble_stats(user_id, amount, is_win):
+    """更新使用者的賭博統計資料"""
+    try:
+        with open(GAMBLE_STATS_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+        
+    uid_str = str(user_id)
+    if uid_str not in data:
+        # games_played: 總場次, games_won: 勝場, net_profit: 淨利(贏或輸的總和)
+        data[uid_str] = {"games_played": 0, "games_won": 0, "net_profit": 0}
+        
+    data[uid_str]["games_played"] += 1
+    if is_win:
+        data[uid_str]["games_won"] += 1
+    data[uid_str]["net_profit"] += amount # 贏的話加上正數，輸的話加上負數
+    
+    with open(GAMBLE_STATS_FILE, 'w') as f:
+        json.dump(data, f)
+
 @client.hybrid_command(name='gamble', description='賭博：輸入金額，骰出 >50 翻倍，否則歸零')
 @commands.cooldown(1, 3600, commands.BucketType.user)
 async def gamble(ctx, amount: int):
@@ -663,11 +685,13 @@ async def gamble(ctx, amount: int):
     roll = random.randint(1, 100)
     if roll > 50:
         new_balance = update_user_coins(ctx.author.id, amount)
+        update_gamble_stats(ctx.author.id, amount, True)  # 新增：紀錄贏錢
         await ctx.send(f"🎲 你骰出了 **{roll}**！贏了！獲得 {amount} 枚折成幣 (目前: {new_balance}) 🎉")
     else:
         new_balance = update_user_coins(ctx.author.id, -amount)
-        await ctx.send(f"🎲 你骰出了 **{roll}**... 輸光光 💸 (目前: {new_balance})")
-        
+        update_gamble_stats(ctx.author.id, -amount, False) # 新增：紀錄輸錢
+        await ctx.send(f"🎲 你骰出了 **{roll}**... 輸光光 💸 (目前: {new_balance})")      
+
 @client.hybrid_command(name='rich', description='查看折成幣富豪榜 (前 5 名)')
 async def rich(ctx):
     try:
@@ -821,5 +845,74 @@ async def steal(ctx, member: discord.Member):
         await ctx.send(f"🥷 <@{ctx.author.id}> 趁著 <@{member.id}> 不注意，偷偷摸走了 **{amount}** 枚折成幣！(目前總計: {new_balance} 幣)")
     else:
         await ctx.send(f"💨 <@{ctx.author.id}> 剛伸手進 <@{member.id}> 的口袋，就被對方發現了！只好尷尬地收手，一毛錢都沒偷到... (目前總計: {new_balance} 幣)")
+
+@client.hybrid_command(name='mygamble', description='查看自己的賭博統計 (次數、勝率、淨利)')
+async def mygamble(ctx):
+    try:
+        with open(GAMBLE_STATS_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        await ctx.send("📊 你還沒有任何賭博紀錄喔！快去 /gamble 試試手氣吧！")
+        return
+
+    uid_str = str(ctx.author.id)
+    stats = data.get(uid_str)
+
+    if not stats or stats["games_played"] == 0:
+        await ctx.send("📊 你還沒有任何賭博紀錄喔！")
+        return
+
+    games = stats["games_played"]
+    wins = stats["games_won"]
+    profit = stats["net_profit"]
+    win_rate = (wins / games) * 100
+
+    # 幫數字加上正負號標示，如果大於 0 就加上 + 號
+    profit_str = f"+{profit}" if profit > 0 else str(profit)
+    
+    await ctx.send(
+        f"📊 **<@{ctx.author.id}> 的賭場戰績**\n"
+        f"🎲 總遊玩次數: **{games}** 次\n"
+        f"🏆 勝率: **{win_rate:.1f}%** ({wins} 勝)\n"
+        f"💰 總淨利: **{profit_str}** 折成幣"
+    )
+
+@client.hybrid_command(name='gambletop', description='查看賭神排行榜 (依總淨利排序)')
+async def gambletop(ctx):
+    try:
+        with open(GAMBLE_STATS_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        await ctx.send("目前賭場空蕩蕩，還沒有人有紀錄...")
+        return
+
+    # 過濾掉沒玩過的人，並轉成列表方便排序
+    valid_users = {uid: stats for uid, stats in data.items() if stats.get("games_played", 0) > 0}
+    
+    if not valid_users:
+        await ctx.send("目前賭場空蕩蕩，還沒有人有紀錄...")
+        return
+
+    # 依照 net_profit (淨利) 從大到小排序
+    sorted_users = sorted(valid_users.items(), key=lambda item: item[1]["net_profit"], reverse=True)
+    top_5 = sorted_users[:5] # 取前 5 名
+
+    embed = discord.Embed(title="🎰 折成賭神排行榜", description="以賭場「總淨利」作為排名依據", color=discord.Color.purple())
+    
+    for rank, (uid, stats) in enumerate(top_5, 1):
+        user = client.get_user(int(uid))
+        name = user.display_name if user else f"神秘賭客 ({uid})"
+        
+        profit = stats["net_profit"]
+        win_rate = (stats["games_won"] / stats["games_played"]) * 100
+        profit_str = f"+{profit}" if profit > 0 else str(profit)
+        
+        embed.add_field(
+            name=f"第 {rank} 名: {name}", 
+            value=f"淨利: **{profit_str}** 幣 (勝率: {win_rate:.1f}%)", 
+            inline=False
+        )
+        
+    await ctx.send(embed=embed)
 
 client.run(MY_TOKEN)
