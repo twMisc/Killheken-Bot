@@ -721,7 +721,7 @@ async def rich(ctx):
 async def hongbao(ctx):
     today_holiday = get_today_holiday()
     if today_holiday != "春節連假":
-        await ctx.send("❌ 現在不是春節連假期間，沒有紅包可以領喔！")
+        await ctx.send("❌ 現在不是春節連假期間，沒有紅包可以領喔！", ephemeral=True)
         return
 
     user_id = ctx.author.id
@@ -737,7 +737,7 @@ async def hongbao(ctx):
         data = {"date": today_str, "claimed_users": []}
 
     if user_id in data["claimed_users"]:
-        await ctx.send("🧧 你今天已經領過紅包囉！明天再來吧！")
+        await ctx.send("🧧 你今天已經領過紅包囉！明天再來吧！", ephemeral=True)
         return
 
     amount = random.choices(
@@ -768,7 +768,7 @@ async def checkin(ctx):
         data = {"date": today_str, "claimed_users": []}
 
     if user_id in data["claimed_users"]:
-        await ctx.send("你今天已經簽到過了！明天再來吧！")
+        await ctx.send("你今天已經簽到過了！明天再來吧！", ephemeral=True)
         return
 
     data["claimed_users"].append(user_id)
@@ -781,11 +781,11 @@ async def checkin(ctx):
 @client.hybrid_command(name='steal', description='偷別人的折成幣 (每天限一次，隨機 0~5 枚)')
 async def steal(ctx, member: discord.Member):
     if member.id == ctx.author.id:
-        await ctx.send("❌ 你不能偷自己的錢！")
+        await ctx.send("❌ 你不能偷自己的錢！", ephemeral=True)
         return
     
     if member.bot:
-        await ctx.send("❌ 你不能偷機器人的錢！")
+        await ctx.send("❌ 你不能偷機器人的錢！", ephemeral=True)
         return
 
     user_id = ctx.author.id
@@ -802,7 +802,7 @@ async def steal(ctx, member: discord.Member):
         steal_data = {"date": today_str, "claimed_users": []}
 
     if user_id in steal_data["claimed_users"]:
-        await ctx.send("🕵️ 你今天已經偷過錢了！適可而止吧，明天再來。")
+        await ctx.send("🕵️ 你今天已經偷過錢了！適可而止吧，明天再來。", ephemeral=True)
         return
 
     # 目標餘額檢查
