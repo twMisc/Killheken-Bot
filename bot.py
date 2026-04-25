@@ -434,9 +434,9 @@ async def on_command_error(ctx, exception):
     elif isinstance(exception, commands.BadArgument):
         await ctx.send("❌ 參數格式錯誤！", ephemeral=True)
     elif isinstance(exception, commands.NotOwner):
-        await ctx.send("This is an admin only command.")
+        await ctx.send("This is an admin only command.", ephemeral=True)
     elif isinstance(exception, commands.PrivateMessageOnly):
-        await ctx.send("DM me this command to use it.")
+        await ctx.send("DM me this command to use it.", ephemeral=True)
     else:
         print(f"Error: {exception}")
 
