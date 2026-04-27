@@ -22,6 +22,7 @@ The bot requires these files in the working directory (all gitignored):
 - `skull_count.json` — dict of emoji-string → count
 - `coins.json` — dict of user-ID-string → coin balance (created at runtime)
 - `hongbao.json` — daily red envelope claim tracking (created at runtime)
+- `fixed_deposit.json` — weekly fixed deposit tracking (created at runtime)
 
 `holidays.json` is the only JSON data file tracked in git. It maps `YYYY-MM-DD` → holiday name strings for Taiwanese holidays.
 
@@ -38,7 +39,7 @@ Single-file bot (`bot.py`, ~730 lines) using **discord.py** with the `commands.B
 - Reply rate decays over time via `t_func`/`get_rate` (sigmoid-based cooldown).
 
 **Core features:**
-- Coin economy: daily check-in rewards, gambling, wallet, leaderboard, seasonal hongbao
+- Coin economy: daily check-in rewards, gambling, wallet, leaderboard, seasonal hongbao, and weekly fixed deposit (5% interest)
 - Dark bid system (`/darkbid`): secret bidding to become "boss" who steals daily rewards
 - Dinner randomizer with persistent candidate list
 - Polling system (`PollView` with discord.py `View`/`Button`)

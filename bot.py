@@ -43,6 +43,9 @@ HONGBAO_FILE = 'hongbao.json'
 CHECKIN_FILE = 'checkin.json'
 STEAL_FILE = 'steal.json'
 GAMBLE_STATS_FILE = 'gamble_stats.json'
+FIXED_DEPOSIT_FILE = 'fixed_deposit.json'
+FIXED_DEPOSIT_INTEREST = 0.05  # 每週 5% 利息
+FIXED_DEPOSIT_RATIO_LIMIT = 0.3  # 最多存 30%
 T_OLD = -10**6
 T_NEW = time.time()
 DAILY_BIDS = {}
@@ -914,4 +917,140 @@ async def gambletop(ctx):
         
     await ctx.send(embed=embed)
 
+@client.hybrid_command(name='bank', description='查看你的銀行定存狀態')
+async def bank(ctx):
+    try:
+        with open(FIXED_DEPOSIT_FILE, 'r') as f:
+            bank_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        bank_data = {}
+
+    uid_str = str(ctx.author.id)
+    user_bank = bank_data.get(uid_str)
+
+    if not user_bank or user_bank["principal"] <= 0:
+        await ctx.send("🏦 你目前在銀行沒有任何定存喔！使用 `/deposit` 來存錢領利息吧。")
+        return
+
+    principal = user_bank["principal"]
+    start_time = datetime.datetime.fromtimestamp(user_bank["start_time"], TAIPEI_TZ)
+    maturity_time = start_time + datetime.timedelta(days=7)
+    now = get_now()
+    
+    interest = int(principal * FIXED_DEPOSIT_INTEREST)
+    
+    embed = discord.Embed(title="🏦 折成銀行 - 定存明細", color=discord.Color.blue())
+    embed.add_field(name="💰 定存本金", value=f"{principal} 幣", inline=True)
+    embed.add_field(name="📈 預計利息", value=f"{interest} 幣 (5%)", inline=True)
+    embed.add_field(name="📅 存入時間", value=start_time.strftime('%Y-%m-%d %H:%M'), inline=False)
+    embed.add_field(name="🔓 到期時間", value=maturity_time.strftime('%Y-%m-%d %H:%M'), inline=False)
+
+    if now >= maturity_time:
+        embed.description = "✅ **定存已到期！** 你可以提領了。"
+        embed.color = discord.Color.green()
+    else:
+        delta = maturity_time - now
+        days = delta.days
+        hours, remainder = divmod(delta.seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+        embed.description = f"⏳ 距離領錢還有: **{days}天 {hours}小時 {minutes}分**"
+        
+    await ctx.send(embed=embed)
+
+@client.hybrid_command(name='deposit', description='將錢存入銀行定存 (一週後領 5% 利息，上限為總資產 30%)')
+async def deposit(ctx, amount: int):
+    if amount <= 0:
+        await ctx.send("❌ 存入金額必須大於 0")
+        return
+
+    uid_str = str(ctx.author.id)
+
+    # 讀取資料
+    try:
+        with open(COIN_FILE, 'r') as f:
+            coin_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        coin_data = {}
+
+    try:
+        with open(FIXED_DEPOSIT_FILE, 'r') as f:
+            bank_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        bank_data = {}
+
+    current_balance = coin_data.get(uid_str, 0)
+    user_bank = bank_data.get(uid_str, {"principal": 0, "start_time": 0})
+
+    # 1. 檢查是否已有未到期的定存
+    if user_bank["principal"] > 0:
+        maturity_time = datetime.datetime.fromtimestamp(user_bank["start_time"], TAIPEI_TZ) + datetime.timedelta(days=7)
+        if get_now() < maturity_time:
+            await ctx.send(f"❌ 你已經有一筆定存正在進行中，請等期滿提領後再存入更多。")
+            return
+
+    # 2. 檢查餘額
+    if amount > current_balance:
+        await ctx.send(f"❌ 你的錢不夠！身上只有 {current_balance} 幣。")
+        return
+
+    # 3. 檢查 30% 上限 (銀行本金 + 新存入的錢 / 總資產)
+    total_wealth = current_balance + user_bank["principal"]
+    max_deposit = int(total_wealth * FIXED_DEPOSIT_RATIO_LIMIT)
+    
+    # 這裡的邏輯是存入後，銀行總額不能超過總資產 30%
+    if (user_bank["principal"] + amount) > max_deposit:
+        await ctx.send(f"❌ 銀行存款上限為總資產的 30% ({max_deposit} 幣)，你目前最多只能再存 {max_deposit - user_bank['principal']} 幣。")
+        return
+
+    # 更新金額
+    update_user_coins(ctx.author.id, -amount)
+    bank_data[uid_str] = {
+        "principal": user_bank["principal"] + amount,
+        "start_time": get_now().timestamp()
+    }
+
+    with open(FIXED_DEPOSIT_FILE, 'w') as f:
+        json.dump(bank_data, f)
+
+    await ctx.send(f"🏦 成功存入 **{amount}** 幣！新一輪定存開始，預計一週後可領取利息。")
+
+@client.hybrid_command(name='withdraw', description='提領定存本金與利息 (需期滿 7 天)')
+async def withdraw(ctx):
+    uid_str = str(ctx.author.id)
+
+    try:
+        with open(FIXED_DEPOSIT_FILE, 'r') as f:
+            bank_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        await ctx.send("❌ 你在銀行沒有存款。")
+        return
+
+    user_bank = bank_data.get(uid_str)
+    if not user_bank or user_bank["principal"] <= 0:
+        await ctx.send("❌ 你在銀行沒有存款。")
+        return
+
+    # 檢查是否滿 7 天
+    maturity_time = datetime.datetime.fromtimestamp(user_bank["start_time"], TAIPEI_TZ) + datetime.timedelta(days=7)
+    if get_now() < maturity_time:
+        delta = maturity_time - get_now()
+        await ctx.send(f"⏳ 定存尚未到期！還需等待 {delta.days}天 {delta.seconds // 3600}小時。")
+        return
+
+    # 計算本利和
+    principal = user_bank["principal"]
+    interest = int(principal * FIXED_DEPOSIT_INTEREST)
+    total = principal + interest
+
+    # 發放錢財
+    new_balance = update_user_coins(ctx.author.id, total)
+
+    # 清除銀行紀錄
+    bank_data[uid_str] = {"principal": 0, "start_time": 0}
+    with open(FIXED_DEPOSIT_FILE, 'w') as f:
+        json.dump(bank_data, f)
+
+    await ctx.send(f"💰 恭喜！你領回了本金 {principal} 幣以及利息 {interest} 幣，共計 **{total}** 幣！(目前身上: {new_balance})")
+
 client.run(MY_TOKEN)
+
