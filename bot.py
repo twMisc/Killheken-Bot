@@ -969,7 +969,7 @@ async def bank(ctx):
     user_bank = bank_data.get(uid_str)
 
     if not user_bank or user_bank["principal"] <= 0:
-        await ctx.send("🏦 你目前在銀行沒有任何定存喔！使用 `/deposit` 來存錢領利息吧。")
+        await ctx.send("🏦 你目前在銀行沒有任何定存喔！使用 `/deposit` 來存錢領利息吧。", ephemeral=True)
         return
 
     principal = user_bank["principal"]
@@ -995,12 +995,12 @@ async def bank(ctx):
         minutes, _ = divmod(remainder, 60)
         embed.description = f"⏳ 距離領錢還有: **{days}天 {hours}小時 {minutes}分**"
         
-    await ctx.send(embed=embed)
+    await ctx.send(embed=embed, ephemeral=True)
 
 @client.hybrid_command(name='deposit', description='將錢存入銀行定存 (一週後領 5% 利息，上限為總資產 30%)')
 async def deposit(ctx, amount: int):
     if amount <= 0:
-        await ctx.send("❌ 存入金額必須大於 0")
+        await ctx.send("❌ 存入金額必須大於 0", ephemeral=True)
         return
 
     uid_str = str(ctx.author.id)
@@ -1025,12 +1025,12 @@ async def deposit(ctx, amount: int):
     if user_bank["principal"] > 0:
         maturity_time = datetime.datetime.fromtimestamp(user_bank["start_time"], TAIPEI_TZ) + datetime.timedelta(days=7)
         if get_now() < maturity_time:
-            await ctx.send(f"❌ 你已經有一筆定存正在進行中，請等期滿提領後再存入更多。")
+            await ctx.send(f"❌ 你已經有一筆定存正在進行中，請等期滿提領後再存入更多。", ephemeral=True)
             return
 
     # 2. 檢查餘額
     if amount > current_balance:
-        await ctx.send(f"❌ 你的錢不夠！身上只有 {current_balance} 幣。")
+        await ctx.send(f"❌ 你的錢不夠！身上只有 {current_balance} 幣。", ephemeral=True)
         return
 
     # 3. 檢查 30% 上限 (銀行本金 + 新存入的錢 / 總資產)
@@ -1039,7 +1039,7 @@ async def deposit(ctx, amount: int):
     
     # 這裡的邏輯是存入後，銀行總額不能超過總資產 30%
     if (user_bank["principal"] + amount) > max_deposit:
-        await ctx.send(f"❌ 銀行存款上限為總資產的 30% ({max_deposit} 幣)，你目前最多只能再存 {max_deposit - user_bank['principal']} 幣。")
+        await ctx.send(f"❌ 銀行存款上限為總資產的 30% ({max_deposit} 幣)，你目前最多只能再存 {max_deposit - user_bank['principal']} 幣。", ephemeral=True)
         return
 
     # 更新金額
@@ -1052,7 +1052,7 @@ async def deposit(ctx, amount: int):
     with open(FIXED_DEPOSIT_FILE, 'w') as f:
         json.dump(bank_data, f)
 
-    await ctx.send(f"🏦 成功存入 **{amount}** 幣！新一輪定存開始，預計一週後可領取利息。")
+    await ctx.send(f"🏦 成功存入 **{amount}** 幣！新一輪定存開始，預計一週後可領取利息。", ephemeral=True)
 
 @client.hybrid_command(name='withdraw', description='提領定存本金與利息 (需期滿 7 天)')
 async def withdraw(ctx):
@@ -1062,19 +1062,19 @@ async def withdraw(ctx):
         with open(FIXED_DEPOSIT_FILE, 'r') as f:
             bank_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        await ctx.send("❌ 你在銀行沒有存款。")
+        await ctx.send("❌ 你在銀行沒有存款。", ephemeral=True)
         return
 
     user_bank = bank_data.get(uid_str)
     if not user_bank or user_bank["principal"] <= 0:
-        await ctx.send("❌ 你在銀行沒有存款。")
+        await ctx.send("❌ 你在銀行沒有存款。", ephemeral=True)
         return
 
     # 檢查是否滿 7 天
     maturity_time = datetime.datetime.fromtimestamp(user_bank["start_time"], TAIPEI_TZ) + datetime.timedelta(days=7)
     if get_now() < maturity_time:
         delta = maturity_time - get_now()
-        await ctx.send(f"⏳ 定存尚未到期！還需等待 {delta.days}天 {delta.seconds // 3600}小時。")
+        await ctx.send(f"⏳ 定存尚未到期！還需等待 {delta.days}天 {delta.seconds // 3600}小時。", ephemeral=True)
         return
 
     # 計算本利和
@@ -1090,7 +1090,7 @@ async def withdraw(ctx):
     with open(FIXED_DEPOSIT_FILE, 'w') as f:
         json.dump(bank_data, f)
 
-    await ctx.send(f"💰 恭喜！你領回了本金 {principal} 幣以及利息 {interest} 幣，共計 **{total}** 幣！(目前身上: {new_balance})")
+    await ctx.send(f"💰 恭喜！你領回了本金 {principal} 幣以及利息 {interest} 幣，共計 **{total}** 幣！(目前身上: {new_balance})", ephemeral=True)
 
 @client.hybrid_command(name='lotto', description=f'購買大樂透彩券！從 1~{LOTTO_MAX_NUM} 選一個數字 (每張 {LOTTO_PRICE} 幣)')
 async def lotto(ctx, number: int):
