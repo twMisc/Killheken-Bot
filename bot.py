@@ -780,7 +780,7 @@ async def checkin(ctx):
     new_balance = update_user_coins(user_id, 5)
     await ctx.send(f"✅ 簽到成功！<@{user_id}> 獲得 5 枚折成幣！(目前: {new_balance})")
 
-@client.hybrid_command(name='steal', description='偷別人的折成幣 (每天限一次，隨機 0~5 枚)')
+@client.hybrid_command(name='steal', description='偷別人的折成幣 (50% 成功拿對方 10%，失敗給對方自己 10%，目標每天限被偷成功一次)')
 async def steal(ctx, member: discord.Member):
     if member.id == ctx.author.id:
         await ctx.send("❌ 你不能偷自己的錢！", ephemeral=True)
@@ -798,55 +798,67 @@ async def steal(ctx, member: discord.Member):
         with open(STEAL_FILE, 'r') as f:
             steal_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        steal_data = {"date": "", "claimed_users": []}
+        steal_data = {"date": "", "claimed_users": [], "robbed_users": []}
 
     if steal_data.get("date") != today_str:
-        steal_data = {"date": today_str, "claimed_users": []}
+        steal_data = {"date": today_str, "claimed_users": [], "robbed_users": []}
 
+    if "robbed_users" not in steal_data:
+        steal_data["robbed_users"] = []
+
+    # 1. 檢查小偷是否已經執行過行動 (私訊)
     if user_id in steal_data["claimed_users"]:
         await ctx.send("🕵️ 你今天已經偷過錢了！適可而止吧，明天再來。", ephemeral=True)
         return
 
-    # 目標餘額檢查
+    # 2. 檢查目標今天是否已經被成功偷過 (私訊)
+    if member.id in steal_data["robbed_users"]:
+        await ctx.send(f"🛡️ **{member.display_name}** 今天已經被洗劫過，現在防範非常嚴密，你找不到下手機會！（此行動不計入每日次數）", ephemeral=True)
+        return
+
+    # 讀取餘額資料
     try:
         with open(COIN_FILE, 'r') as f:
             coins_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         coins_data = {}
     
+    attacker_id_str = str(user_id)
     target_id_str = str(member.id)
+    attacker_balance = coins_data.get(attacker_id_str, 0)
     target_balance = coins_data.get(target_id_str, 0)
     
     if target_balance <= 0:
-        await ctx.send(f"❌ <@{member.id}> 身上一毛錢都沒有，是要偷個毛？")
+        await ctx.send(f"❌ **{member.display_name}** 身上一毛錢都沒有，是要偷個毛？", ephemeral=True)
         return
 
-    # 偷竊邏輯
-    max_steal = min(5, target_balance)
-    amount = random.randint(0, max_steal)
+    # 50/50 偷竊邏輯
+    is_success = random.random() < 0.5
     
-    # 更新雙方餘額
-    if amount > 0:
+    if is_success:
+        # 成功：偷走對方 10%
+        amount = max(1, int(target_balance * 0.1))
         update_user_coins(member.id, -amount)
         new_balance = update_user_coins(ctx.author.id, amount)
+        
+        # 紀錄目標今天已被成功偷過
+        steal_data["robbed_users"].append(member.id)
+        
+        # 公開訊息：Tag 雙方
+        await ctx.send(f"🥷 <@{ctx.author.id}> 趁著 <@{member.id}> 不注意，偷偷摸走了 **{amount}** 枚折成幣！(目前總計: {new_balance} 幣)")
     else:
-        # 如果偷到 0，也要從資料庫讀取當前餘額以顯示在訊息中
-        try:
-            with open(COIN_FILE, 'r') as f:
-                coins_data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            coins_data = {}
-        new_balance = coins_data.get(str(ctx.author.id), 0)
+        # 失敗：賠自己 10%
+        penalty = max(1, int(attacker_balance * 0.1))
+        update_user_coins(member.id, penalty)
+        new_balance = update_user_coins(ctx.author.id, -penalty)
+        
+        # 公開訊息：Tag 雙方
+        await ctx.send(f"💨 <@{ctx.author.id}> 剛伸手進 <@{member.id}> 的口袋，就被對方發現了！只好尷尬地收手，並賠償了 **{penalty}** 枚折成幣... (目前總計: {new_balance} 幣)")
     
-    # 紀錄今日已偷竊
+    # 紀錄小偷今日已行動
     steal_data["claimed_users"].append(user_id)
     with open(STEAL_FILE, 'w') as f:
         json.dump(steal_data, f)
-        
-    if amount > 0:
-        await ctx.send(f"🥷 <@{ctx.author.id}> 趁著 <@{member.id}> 不注意，偷偷摸走了 **{amount}** 枚折成幣！(目前總計: {new_balance} 幣)")
-    else:
-        await ctx.send(f"💨 <@{ctx.author.id}> 剛伸手進 <@{member.id}> 的口袋，就被對方發現了！只好尷尬地收手，一毛錢都沒偷到... (目前總計: {new_balance} 幣)")
 
 @client.hybrid_command(name='mygamble', description='查看自己的賭博統計 (次數、勝率、淨利)')
 async def mygamble(ctx):
