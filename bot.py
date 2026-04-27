@@ -15,7 +15,9 @@ TOKEN = Path('token').read_text().strip()
 GUILD = Path('guild').read_text().strip()
 
 with open('ids_admin.json') as f:
-    ADMIN_LIST = set(json.load(f))
+    _admin_data = json.load(f)
+    MY_ID = _admin_data[0]
+    ADMIN_LIST = set(_admin_data)
 with open('ids.json') as f:
     ID_LIST = json.load(f)
 with open('emojis.json') as f:
@@ -297,13 +299,6 @@ async def on_ready():
                                      type=discord.ActivityType.playing,
                                      name="我是帥哥誠"))
 
-@client.command(name='givemoney', hidden=True)
-@commands.is_owner()
-@commands.dm_only()
-async def givemoney(ctx, amount: int):
-    new_balance = update_user_coins(ctx.author.id, amount)
-    await ctx.send(f"🤫 作弊成功！已偷偷印鈔 **{amount}** 枚折成幣進你的錢包。目前餘額: {new_balance}")
-
 @client.hybrid_command(name='whatdinner', description='問帥哥誠晚餐吃啥的開關')
 async def whatdinner(ctx):
     if ctx.author.id == 424569079278338059:
@@ -370,6 +365,10 @@ async def update(ctx):
 @commands.is_owner()
 @commands.dm_only()
 async def shell(ctx, command):
+    if ctx.author.id != MY_ID:
+        await ctx.send("This is a super-admin only command.", ephemeral=True)
+        return
+        
     command = command.split()
     result = subprocess.run(command, capture_output=True, text=True).stdout.strip("\n")
     await ctx.send(result)
