@@ -44,8 +44,8 @@ CHECKIN_FILE = 'checkin.json'
 STEAL_FILE = 'steal.json'
 GAMBLE_STATS_FILE = 'gamble_stats.json'
 FIXED_DEPOSIT_FILE = 'fixed_deposit.json'
-FIXED_DEPOSIT_INTEREST = 0.05  # 每週 5% 利息
-FIXED_DEPOSIT_RATIO_LIMIT = 0.3  # 最多存 30%
+FIXED_DEPOSIT_INTEREST = 0.05
+FIXED_DEPOSIT_RATIO_LIMIT = 0.3
 
 LOTTO_FILE = 'lotto.json'
 LOTTO_MAX_NUM = 100         
@@ -675,13 +675,12 @@ def update_gamble_stats(user_id, amount, is_win):
         
     uid_str = str(user_id)
     if uid_str not in data:
-        # games_played: 總場次, games_won: 勝場, net_profit: 淨利(贏或輸的總和)
         data[uid_str] = {"games_played": 0, "games_won": 0, "net_profit": 0}
         
     data[uid_str]["games_played"] += 1
     if is_win:
         data[uid_str]["games_won"] += 1
-    data[uid_str]["net_profit"] += amount # 贏的話加上正數，輸的話加上負數
+    data[uid_str]["net_profit"] += amount
     
     with open(GAMBLE_STATS_FILE, 'w') as f:
         json.dump(data, f)
@@ -710,11 +709,11 @@ async def gamble(ctx, amount: int):
     roll = random.randint(1, 100)
     if roll > 50:
         new_balance = update_user_coins(ctx.author.id, amount)
-        update_gamble_stats(ctx.author.id, amount, True)  # 新增：紀錄贏錢
+        update_gamble_stats(ctx.author.id, amount, True)
         await ctx.send(f"🎲 你骰出了 **{roll}**！贏了！獲得 {amount} 枚折成幣 (目前: {new_balance}) 🎉")
     else:
         new_balance = update_user_coins(ctx.author.id, -amount)
-        update_gamble_stats(ctx.author.id, -amount, False) # 新增：紀錄輸錢
+        update_gamble_stats(ctx.author.id, -amount, False)
 
         lotto_data = get_lotto_data()
         lotto_data["pot"] += amount
@@ -821,7 +820,6 @@ async def steal(ctx, member: discord.Member):
     user_id = ctx.author.id
     today_str = get_now().strftime('%Y-%m-%d')
 
-    # 每日限制檢查
     try:
         with open(STEAL_FILE, 'r') as f:
             steal_data = json.load(f)
@@ -834,17 +832,14 @@ async def steal(ctx, member: discord.Member):
     if "robbed_users" not in steal_data:
         steal_data["robbed_users"] = []
 
-    # 1. 檢查小偷是否已經執行過行動 (私訊)
     if user_id in steal_data["claimed_users"]:
         await ctx.send("🕵️ 你今天已經偷過錢了！適可而止吧，明天再來。", ephemeral=True)
         return
 
-    # 2. 檢查目標今天是否已經被成功偷過 (私訊)
     if member.id in steal_data["robbed_users"]:
         await ctx.send(f"🛡️ **{member.display_name}** 今天已經被洗劫過，現在防範非常嚴密，你找不到下手機會！（此行動不計入每日次數）", ephemeral=True)
         return
 
-    # 讀取餘額資料
     try:
         with open(COIN_FILE, 'r') as f:
             coins_data = json.load(f)
@@ -860,30 +855,23 @@ async def steal(ctx, member: discord.Member):
         await ctx.send(f"❌ **{member.display_name}** 身上一毛錢都沒有，是要偷個毛？", ephemeral=True)
         return
 
-    # 50/50 偷竊邏輯
     is_success = random.random() < 0.5
     
     if is_success:
-        # 成功：偷走對方 10%
         amount = max(1, int(target_balance * 0.1))
         update_user_coins(member.id, -amount)
         new_balance = update_user_coins(ctx.author.id, amount)
         
-        # 紀錄目標今天已被成功偷過
         steal_data["robbed_users"].append(member.id)
         
-        # 公開訊息：Tag 雙方
         await ctx.send(f"🥷 <@{ctx.author.id}> 趁著 <@{member.id}> 不注意，偷偷摸走了 **{amount}** 枚折成幣！(目前總計: {new_balance} 幣)")
     else:
-        # 失敗：賠自己 10%
         penalty = max(1, int(attacker_balance * 0.1))
         update_user_coins(member.id, penalty)
         new_balance = update_user_coins(ctx.author.id, -penalty)
         
-        # 公開訊息：Tag 雙方
         await ctx.send(f"💨 <@{ctx.author.id}> 剛伸手進 <@{member.id}> 的口袋，就被對方發現了！只好尷尬地收手，並賠償了 **{penalty}** 枚折成幣... (目前總計: {new_balance} 幣)")
     
-    # 紀錄小偷今日已行動
     steal_data["claimed_users"].append(user_id)
     with open(STEAL_FILE, 'w') as f:
         json.dump(steal_data, f)
@@ -909,7 +897,6 @@ async def mygamble(ctx):
     profit = stats["net_profit"]
     win_rate = (wins / games) * 100
 
-    # 幫數字加上正負號標示，如果大於 0 就加上 + 號
     profit_str = f"+{profit}" if profit > 0 else str(profit)
     
     await ctx.send(
@@ -928,16 +915,14 @@ async def gambletop(ctx):
         await ctx.send("目前賭場空蕩蕩，還沒有人有紀錄...")
         return
 
-    # 過濾掉沒玩過的人，並轉成列表方便排序
     valid_users = {uid: stats for uid, stats in data.items() if stats.get("games_played", 0) > 0}
     
     if not valid_users:
         await ctx.send("目前賭場空蕩蕩，還沒有人有紀錄...")
         return
 
-    # 依照 net_profit (淨利) 從大到小排序
     sorted_users = sorted(valid_users.items(), key=lambda item: item[1]["net_profit"], reverse=True)
-    top_5 = sorted_users[:5] # 取前 5 名
+    top_5 = sorted_users[:5]
 
     embed = discord.Embed(title="🎰 折成賭神排行榜", description="以賭場「總淨利」作為排名依據", color=discord.Color.purple())
     
@@ -1005,7 +990,6 @@ async def deposit(ctx, amount: int):
 
     uid_str = str(ctx.author.id)
 
-    # 讀取資料
     try:
         with open(COIN_FILE, 'r') as f:
             coin_data = json.load(f)
@@ -1021,28 +1005,23 @@ async def deposit(ctx, amount: int):
     current_balance = coin_data.get(uid_str, 0)
     user_bank = bank_data.get(uid_str, {"principal": 0, "start_time": 0})
 
-    # 1. 檢查是否已有未到期的定存
     if user_bank["principal"] > 0:
         maturity_time = datetime.datetime.fromtimestamp(user_bank["start_time"], TAIPEI_TZ) + datetime.timedelta(days=7)
         if get_now() < maturity_time:
             await ctx.send(f"❌ 你已經有一筆定存正在進行中，請等期滿提領後再存入更多。", ephemeral=True)
             return
 
-    # 2. 檢查餘額
     if amount > current_balance:
         await ctx.send(f"❌ 你的錢不夠！身上只有 {current_balance} 幣。", ephemeral=True)
         return
 
-    # 3. 檢查 30% 上限 (銀行本金 + 新存入的錢 / 總資產)
     total_wealth = current_balance + user_bank["principal"]
     max_deposit = int(total_wealth * FIXED_DEPOSIT_RATIO_LIMIT)
     
-    # 這裡的邏輯是存入後，銀行總額不能超過總資產 30%
     if (user_bank["principal"] + amount) > max_deposit:
         await ctx.send(f"❌ 銀行存款上限為總資產的 30% ({max_deposit} 幣)，你目前最多只能再存 {max_deposit - user_bank['principal']} 幣。", ephemeral=True)
         return
 
-    # 更新金額
     update_user_coins(ctx.author.id, -amount)
     bank_data[uid_str] = {
         "principal": user_bank["principal"] + amount,
@@ -1070,22 +1049,18 @@ async def withdraw(ctx):
         await ctx.send("❌ 你在銀行沒有存款。", ephemeral=True)
         return
 
-    # 檢查是否滿 7 天
     maturity_time = datetime.datetime.fromtimestamp(user_bank["start_time"], TAIPEI_TZ) + datetime.timedelta(days=7)
     if get_now() < maturity_time:
         delta = maturity_time - get_now()
         await ctx.send(f"⏳ 定存尚未到期！還需等待 {delta.days}天 {delta.seconds // 3600}小時。", ephemeral=True)
         return
 
-    # 計算本利和
     principal = user_bank["principal"]
     interest = int(principal * FIXED_DEPOSIT_INTEREST)
     total = principal + interest
 
-    # 發放錢財
     new_balance = update_user_coins(ctx.author.id, total)
 
-    # 清除銀行紀錄
     bank_data[uid_str] = {"principal": 0, "start_time": 0}
     with open(FIXED_DEPOSIT_FILE, 'w') as f:
         json.dump(bank_data, f)
@@ -1100,7 +1075,6 @@ async def lotto(ctx, number: int):
 
     uid_str = str(ctx.author.id)
     
-    # 檢查餘額
     try:
         with open(COIN_FILE, 'r') as f:
             coin_data = json.load(f)
@@ -1114,21 +1088,17 @@ async def lotto(ctx, number: int):
 
     lotto_data = get_lotto_data()
     
-    # 初始化玩家的彩券列表
     if uid_str not in lotto_data["tickets"]:
         lotto_data["tickets"][uid_str] = []
         
-    # 檢查是否超過購買上限
     if len(lotto_data["tickets"][uid_str]) >= LOTTO_MAX_TICKETS:
         await ctx.send(f"❌ 你今天已經買了 {LOTTO_MAX_TICKETS} 張彩券了，留點機會給別人吧！", ephemeral=True)
         return
         
-    # 檢查是否買過同一個號碼
     if number in lotto_data["tickets"][uid_str]:
         await ctx.send(f"❌ 你已經買過 **{number}** 號了，換個幸運數字吧！", ephemeral=True)
         return
 
-    # 扣錢並記錄彩券
     new_balance = update_user_coins(ctx.author.id, -LOTTO_PRICE)
     lotto_data["tickets"][uid_str].append(number)
     lotto_data["pot"] += LOTTO_TO_POT
@@ -1136,9 +1106,8 @@ async def lotto(ctx, number: int):
     
     await ctx.send(f"🎟️ 購買成功！你選擇了號碼 **{number}**。目前獎金池累積高達 **{lotto_data['pot']}** 幣！(剩餘餘額: {new_balance})")
 
-@tasks.loop(time=datetime.time(hour=21, tzinfo=TAIPEI_TZ)) # 每天晚上 10 點開獎
+@tasks.loop(time=datetime.time(hour=21, tzinfo=TAIPEI_TZ))
 async def daily_lotto_draw():
-    # 使用與下班打卡相同的頻道 ID 發送開獎訊息
     channel = client.get_channel(461180385972322306) 
     if channel is None:
         return
@@ -1158,7 +1127,6 @@ async def daily_lotto_draw():
             winners.append(uid)
             
     if winners:
-        # 有人中獎，平分獎金
         prize_per_person = pot // len(winners)
         winner_mentions = ", ".join([f"<@{uid}>" for uid in winners])
         
@@ -1167,13 +1135,10 @@ async def daily_lotto_draw():
             
         await channel.send(f"🎉 **開獎號碼是：【 {winning_number} 】！** 🎉\n恭喜 {winner_mentions} 猜中號碼！每人分得 **{prize_per_person}** 幣，一夜暴富啦！")
         
-        # 重置獎池
         lotto_data["pot"] = 0
     else:
-        # 沒人中獎，獎金滾存
         await channel.send(f"💥 **開獎號碼是：【 {winning_number} 】！** 💥\n很遺憾，今天**沒有任何人**猜中！\n💸 這 **{pot}** 幣將全數滾入明天的獎金池，請大家明天繼續努力！")
     
-    # 無論有沒有中獎，清空今天的彩券紀錄
     lotto_data["tickets"] = {}
     save_lotto_data(lotto_data)
 
