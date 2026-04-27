@@ -46,6 +46,13 @@ GAMBLE_STATS_FILE = 'gamble_stats.json'
 FIXED_DEPOSIT_FILE = 'fixed_deposit.json'
 FIXED_DEPOSIT_INTEREST = 0.05  # 每週 5% 利息
 FIXED_DEPOSIT_RATIO_LIMIT = 0.3  # 最多存 30%
+
+LOTTO_FILE = 'lotto.json'
+LOTTO_MAX_NUM = 100         
+LOTTO_PRICE = 5            
+LOTTO_TO_POT = 5          
+LOTTO_MAX_TICKETS = 3
+
 T_OLD = -10**6
 T_NEW = time.time()
 DAILY_BIDS = {}
@@ -62,6 +69,20 @@ client.owner_ids = ADMIN_LIST
 
 def get_now():
     return datetime.datetime.now(TAIPEI_TZ)
+
+def get_lotto_data():
+    try:
+        with open(LOTTO_FILE, 'r') as f:
+            data = json.load(f)
+            if "pot" not in data: data["pot"] = 0
+            if "tickets" not in data: data["tickets"] = {}
+            return data
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"pot": 0, "tickets": {}}
+
+def save_lotto_data(data):
+    with open(LOTTO_FILE, 'w') as f:
+        json.dump(data, f)
 
 class PollView(View):
     def __init__(self, title, options, multiple_choice=False):
@@ -297,6 +318,8 @@ async def on_ready():
     print(f'\n\nSuccessfully logged into Discord as "{client.user}"\nAwaiting user input...')
     if not send_daily_message.is_running():
         send_daily_message.start()
+    if not daily_lotto_draw.is_running():
+        daily_lotto_draw.start()        
     await client.change_presence(status=discord.Status.online,
                                  activity=discord.Activity(
                                      type=discord.ActivityType.playing,
@@ -692,7 +715,12 @@ async def gamble(ctx, amount: int):
     else:
         new_balance = update_user_coins(ctx.author.id, -amount)
         update_gamble_stats(ctx.author.id, -amount, False) # 新增：紀錄輸錢
-        await ctx.send(f"🎲 你骰出了 **{roll}**... 輸光光 💸 (目前: {new_balance})")      
+
+        lotto_data = get_lotto_data()
+        lotto_data["pot"] += amount
+        save_lotto_data(lotto_data)
+        
+        await ctx.send(f"🎲 你骰出了 **{roll}**... 輸光光 💸 (目前: {new_balance})\n*(你的 **{amount}** 幣已全數贊助至大樂透獎金池！感謝老闆！)*")        
 
 @client.hybrid_command(name='rich', description='查看折成幣富豪榜 (前 5 名)')
 async def rich(ctx):
@@ -1063,6 +1091,91 @@ async def withdraw(ctx):
         json.dump(bank_data, f)
 
     await ctx.send(f"💰 恭喜！你領回了本金 {principal} 幣以及利息 {interest} 幣，共計 **{total}** 幣！(目前身上: {new_balance})")
+
+@client.hybrid_command(name='lotto', description=f'購買大樂透彩券！從 1~{LOTTO_MAX_NUM} 選一個數字 (每張 {LOTTO_PRICE} 幣)')
+async def lotto(ctx, number: int):
+    if number < 1 or number > LOTTO_MAX_NUM:
+        await ctx.send(f"❌ 號碼必須在 1 到 {LOTTO_MAX_NUM} 之間！", ephemeral=True)
+        return
+
+    uid_str = str(ctx.author.id)
+    
+    # 檢查餘額
+    try:
+        with open(COIN_FILE, 'r') as f:
+            coin_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        coin_data = {}
+        
+    current_balance = coin_data.get(uid_str, 0)
+    if current_balance < LOTTO_PRICE:
+        await ctx.send(f"❌ 餘額不足！買一張彩券需要 {LOTTO_PRICE} 幣，你只有 {current_balance} 幣。", ephemeral=True)
+        return
+
+    lotto_data = get_lotto_data()
+    
+    # 初始化玩家的彩券列表
+    if uid_str not in lotto_data["tickets"]:
+        lotto_data["tickets"][uid_str] = []
+        
+    # 檢查是否超過購買上限
+    if len(lotto_data["tickets"][uid_str]) >= LOTTO_MAX_TICKETS:
+        await ctx.send(f"❌ 你今天已經買了 {LOTTO_MAX_TICKETS} 張彩券了，留點機會給別人吧！", ephemeral=True)
+        return
+        
+    # 檢查是否買過同一個號碼
+    if number in lotto_data["tickets"][uid_str]:
+        await ctx.send(f"❌ 你已經買過 **{number}** 號了，換個幸運數字吧！", ephemeral=True)
+        return
+
+    # 扣錢並記錄彩券
+    new_balance = update_user_coins(ctx.author.id, -LOTTO_PRICE)
+    lotto_data["tickets"][uid_str].append(number)
+    lotto_data["pot"] += LOTTO_TO_POT
+    save_lotto_data(lotto_data)
+    
+    await ctx.send(f"🎟️ 購買成功！你選擇了號碼 **{number}**。目前獎金池累積高達 **{lotto_data['pot']}** 幣！(剩餘餘額: {new_balance})")
+
+@tasks.loop(time=datetime.time(hour=21, tzinfo=TAIPEI_TZ)) # 每天晚上 10 點開獎
+async def daily_lotto_draw():
+    # 使用與下班打卡相同的頻道 ID 發送開獎訊息
+    channel = client.get_channel(461180385972322306) 
+    if channel is None:
+        return
+
+    lotto_data = get_lotto_data()
+    pot = lotto_data["pot"]
+    tickets = lotto_data["tickets"]
+    
+    winning_number = random.randint(1, LOTTO_MAX_NUM)
+    
+    await channel.send(f"🎰 **【每日大樂透開獎】** 🎰\n緊張刺激的時刻來了！今晚的 Jackpot 總獎金高達 **{pot}** 折成幣！\n*正在抽出幸運號碼...*")
+    await asyncio.sleep(3) # 製造懸念
+    
+    winners = []
+    for uid, numbers in tickets.items():
+        if winning_number in numbers:
+            winners.append(uid)
+            
+    if winners:
+        # 有人中獎，平分獎金
+        prize_per_person = pot // len(winners)
+        winner_mentions = ", ".join([f"<@{uid}>" for uid in winners])
+        
+        for uid in winners:
+            update_user_coins(int(uid), prize_per_person)
+            
+        await channel.send(f"🎉 **開獎號碼是：【 {winning_number} 】！** 🎉\n恭喜 {winner_mentions} 猜中號碼！每人分得 **{prize_per_person}** 幣，一夜暴富啦！")
+        
+        # 重置獎池
+        lotto_data["pot"] = 0
+    else:
+        # 沒人中獎，獎金滾存
+        await channel.send(f"💥 **開獎號碼是：【 {winning_number} 】！** 💥\n很遺憾，今天**沒有任何人**猜中！\n💸 這 **{pot}** 幣將全數滾入明天的獎金池，請大家明天繼續努力！")
+    
+    # 無論有沒有中獎，清空今天的彩券紀錄
+    lotto_data["tickets"] = {}
+    save_lotto_data(lotto_data)
 
 client.run(MY_TOKEN)
 
