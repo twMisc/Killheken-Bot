@@ -1177,5 +1177,15 @@ async def daily_lotto_draw():
     lotto_data["tickets"] = {}
     save_lotto_data(lotto_data)
 
+@client.hybrid_command(name='lottopot', description='查看目前大樂透累積的總獎金池！')
+async def lottopot(ctx):
+    lotto_data = get_lotto_data()
+    current_pot = lotto_data.get("pot", 0)
+    
+    if current_pot > 0:
+        await ctx.send(f"🎰 目前大樂透 Jackpot 累積獎金高達 **{current_pot}** 枚折成幣！快用 `/lotto` 來試試手氣吧！")
+    else:
+        await ctx.send("🎰 目前大樂透獎金池是空的！趕快用 `/lotto` 成為今天第一個下注的人吧！")
+
 client.run(MY_TOKEN)
 
