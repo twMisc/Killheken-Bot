@@ -720,7 +720,7 @@ async def checkin(ctx):
     new_balance = update_user_coins(user_id, 5)
     await ctx.send(f"✅ 簽到成功！<@{user_id}> 獲得 5 枚折成幣！(目前: {new_balance})")
 
-@client.hybrid_command(name='steal', description='偷別人的折成幣 (50% 成功拿對方 10%，失敗給對方自己 10%，目標每天限被偷成功一次)')
+@client.hybrid_command(name='steal', description='偷別人的折成幣 (初始 50% 成功，目標每被偷成功一次機率減半；失敗賠償對方 10%)')
 async def steal(ctx, member: discord.Member):
     if member.id == ctx.author.id:
         await ctx.send("❌ 你不能偷自己的錢！", ephemeral=True)
@@ -749,9 +749,9 @@ async def steal(ctx, member: discord.Member):
         await ctx.send("🕵️ 你今天已經偷過錢了！適可而止吧，明天再來。", ephemeral=True)
         return
 
-    if member.id in steal_data["robbed_users"]:
-        await ctx.send(f"🛡️ **{member.display_name}** 今天已經被洗劫過，現在防範非常嚴密，你找不到下手機會！（此行動不計入每日次數）", ephemeral=True)
-        return
+    # 計算目標目前被偷成功的次數，決定成功率
+    rob_success_count = steal_data["robbed_users"].count(member.id)
+    current_chance = 0.5 * (0.5 ** rob_success_count)
 
     try:
         with open(COIN_FILE, 'r') as f:
@@ -768,7 +768,7 @@ async def steal(ctx, member: discord.Member):
         await ctx.send(f"❌ **{member.display_name}** 身上一毛錢都沒有，是要偷個毛？", ephemeral=True)
         return
 
-    is_success = random.random() < 0.5
+    is_success = random.random() < current_chance
     
     if is_success:
         amount = max(1, int(target_balance * 0.1))
@@ -777,13 +777,13 @@ async def steal(ctx, member: discord.Member):
         
         steal_data["robbed_users"].append(member.id)
         
-        await ctx.send(f"🥷 <@{ctx.author.id}> 趁著 <@{member.id}> 不注意，偷偷摸走了 **{amount}** 枚折成幣！(目前總計: {new_balance} 幣)")
+        await ctx.send(f"🥷 <@{ctx.author.id}> 趁著 <@{member.id}> 不注意，偷偷摸走了 **{amount}** 枚折成幣！(目前總計: {new_balance} 幣，成功率: {current_chance:.1%})")
     else:
         penalty = max(1, int(attacker_balance * 0.1))
         update_user_coins(member.id, penalty)
         new_balance = update_user_coins(ctx.author.id, -penalty)
         
-        await ctx.send(f"💨 <@{ctx.author.id}> 剛伸手進 <@{member.id}> 的口袋，就被對方發現了！只好尷尬地收手，並賠償了 **{penalty}** 枚折成幣... (目前總計: {new_balance} 幣)")
+        await ctx.send(f"💨 <@{ctx.author.id}> 剛伸手進 <@{member.id}> 的口袋，就被對方發現了！只好尷尬地收手，並賠償了 **{penalty}** 枚折成幣... (目前總計: {new_balance} 幣，成功率: {current_chance:.1%})")
     
     steal_data["claimed_users"].append(user_id)
     with open(STEAL_FILE, 'w') as f:
