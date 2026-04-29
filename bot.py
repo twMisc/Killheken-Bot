@@ -771,6 +771,7 @@ async def steal(ctx, member: discord.Member):
     is_success = random.random() < current_chance
     
     if is_success:
+        # 確保偷取的金額不會超過目標擁有的金額
         amount = max(1, int(target_balance * 0.1))
         update_user_coins(member.id, -amount)
         new_balance = update_user_coins(ctx.author.id, amount)
@@ -779,9 +780,15 @@ async def steal(ctx, member: discord.Member):
         
         await ctx.send(f"🥷 <@{ctx.author.id}> 趁著 <@{member.id}> 不注意，偷偷摸走了 **{amount}** 枚折成幣！(目前總計: {new_balance} 幣，成功率: {current_chance:.1%})")
     else:
+        # 確保賠償的金額不會超過小偷擁有的金額
         penalty = max(1, int(attacker_balance * 0.1))
-        update_user_coins(member.id, penalty)
-        new_balance = update_user_coins(ctx.author.id, -penalty)
+        penalty = min(penalty, attacker_balance)
+        
+        if penalty > 0:
+            update_user_coins(member.id, penalty)
+            new_balance = update_user_coins(ctx.author.id, -penalty)
+        else:
+            new_balance = attacker_balance
         
         await ctx.send(f"💨 <@{ctx.author.id}> 剛伸手進 <@{member.id}> 的口袋，就被對方發現了！只好尷尬地收手，並賠償了 **{penalty}** 枚折成幣... (目前總計: {new_balance} 幣，成功率: {current_chance:.1%})")
     
