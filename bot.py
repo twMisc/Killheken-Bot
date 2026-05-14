@@ -659,6 +659,70 @@ async def rich(ctx):
         
     await ctx.send(embed=embed)
 
+@client.hybrid_command(name='poor', description='查看折成幣窮人榜 (曾有過幣，現在最窮的 5 名)')
+async def poor(ctx):
+    try:
+        with open(COIN_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        await ctx.send("目前還沒有任何人有過錢...")
+        return
+
+    if not data:
+        await ctx.send("目前還沒有任何人有過錢...")
+        return
+
+    sorted_users = sorted(data.items(), key=lambda item: item[1])
+    bottom_5 = sorted_users[:5]
+
+    embed = discord.Embed(title="💸 折成幣窮人榜", color=discord.Color.dark_gray())
+    for rank, (uid, coins) in enumerate(bottom_5, 1):
+        user = client.get_user(int(uid))
+        name = user.display_name if user else f"User {uid}"
+        embed.add_field(name=f"第 {rank} 名", value=f"**{name}**: {coins} 幣", inline=False)
+
+    await ctx.send(embed=embed)
+
+@client.hybrid_command(name='give', description='施捨：給持有不足 1000 幣的人最多 1000 枚折成幣')
+async def give(ctx, member: discord.Member, amount: int):
+    if member.id == ctx.author.id:
+        await ctx.send("❌ 你不能施捨給自己！", ephemeral=True)
+        return
+
+    if member.bot:
+        await ctx.send("❌ 你不能施捨給機器人！", ephemeral=True)
+        return
+
+    if amount <= 0:
+        await ctx.send("❌ 金額必須大於 0！", ephemeral=True)
+        return
+
+    if amount > 1000:
+        await ctx.send("❌ 一次最多只能施捨 1000 幣！", ephemeral=True)
+        return
+
+    try:
+        with open(COIN_FILE, 'r') as f:
+            coin_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        coin_data = {}
+
+    target_balance = coin_data.get(str(member.id), 0)
+    giver_balance = coin_data.get(str(ctx.author.id), 0)
+
+    if target_balance >= 1000:
+        await ctx.send(f"❌ **{member.display_name}** 已經有 {target_balance} 幣了，不需要施捨！", ephemeral=True)
+        return
+
+    if giver_balance < amount:
+        await ctx.send(f"❌ 你的錢不夠！你只有 {giver_balance} 幣。", ephemeral=True)
+        return
+
+    update_user_coins(ctx.author.id, -amount)
+    new_target_balance = update_user_coins(member.id, amount)
+
+    await ctx.send(f"🤲 <@{ctx.author.id}> 慷慨地施捨了 **{amount}** 幣給 <@{member.id}>！(對方目前: {new_target_balance} 幣)")
+
 @client.hybrid_command(name='hongbao', description='🧧 春節限定：每天領取一次折成幣紅包！')
 async def hongbao(ctx):
     today_holiday = get_today_holiday()
