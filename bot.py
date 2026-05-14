@@ -267,7 +267,9 @@ async def on_ready():
     if not send_daily_message.is_running():
         send_daily_message.start()
     if not daily_lotto_draw.is_running():
-        daily_lotto_draw.start()        
+        daily_lotto_draw.start()
+    if not daily_japan_reminder.is_running():
+        daily_japan_reminder.start()
     await client.change_presence(status=discord.Status.online,
                                  activity=discord.Activity(
                                      type=discord.ActivityType.playing,
@@ -313,13 +315,15 @@ async def delete_dinner(ctx, food: str):
     save_dinner_candidates(DINNER_CANDIDATES)
     await ctx.send(f"已刪除 {food}")
 
-@client.hybrid_command(name='remain', description='問老大何時日本')
-async def remain(ctx):
-    remain_days = (datetime.datetime(2025, 9, 6, tzinfo=TAIPEI_TZ) - get_now()).days
-    if remain_days > 0:
-        await ctx.send(f"離老大日本還有{remain_days}天")
-    else:
-        await ctx.send("老大已經在日本爽了 <:Kreygasm:527748250900496384>")
+@tasks.loop(time=datetime.time(hour=20, tzinfo=TAIPEI_TZ))
+async def daily_japan_reminder():
+    channel = client.get_channel(461180385972322306)
+    await channel.send(
+        "🇯🇵 **【日本計畫進度回報】**\n"
+        "<@424569079278338059> 你今天又在擺爛了嗎？\n"
+        "機票不會自己訂、飯店不會自己長出來、行程不會自己規劃。\n"
+        "說好的日本呢？說好的行動力呢？我們都在等你。"
+    )
 
 @client.hybrid_command(name='sync', description='sync commands')
 @commands.is_owner()
