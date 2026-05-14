@@ -228,9 +228,9 @@ async def send_daily_message():
         msg = await channel.send(
             f"大家起來 Game ({holiday_name}) 🎉 假日限定抽獎！(前 5 名)\n"
             f"請點擊下方反應選擇你的命運：\n"
-            f"🤑 **大賭** (20% 中 5 幣，80% 摃龜)\n"
-            f"🎲 **小賭** (50% 中 2 幣，50% 摃龜)\n"
-            f"🪙 **求穩** (保底領 1 幣)"
+            f"🤑 **大賭** (20% 中 500 幣，80% 摃龜)\n"
+            f"🎲 **小賭** (50% 中 200 幣，50% 摃龜)\n"
+            f"🪙 **求穩** (保底領 100 幣)"
         )
         DAILY_MESSAGE_ID = msg.id
         DAILY_CLAIMED_USERS.clear()
@@ -243,7 +243,7 @@ async def send_daily_message():
         DAILY_EVENT_TYPE = 'weekday'
         DAILY_CLAIMED_USERS.clear()
 
-        msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前 3 名按反應依序領 5, 3, 1 枚折成幣!)")
+        msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前 3 名按反應依序領 500, 300, 100 枚折成幣!)")
         DAILY_MESSAGE_ID = msg.id
 
 def save_dinner_candidates(candidates_list):
@@ -536,13 +536,13 @@ async def on_raw_reaction_add(payload):
 
     if DAILY_EVENT_TYPE == 'holiday':
         if emoji_clicked == "🤑":
-            amount = 5 if random.random() < 0.2 else 0
+            amount = 500 if random.random() < 0.2 else 0
             choice_text = "大賭"
         elif emoji_clicked == "🎲":
-            amount = 2 if random.random() < 0.5 else 0
+            amount = 200 if random.random() < 0.5 else 0
             choice_text = "小賭"
         elif emoji_clicked == "🪙":
-            amount = 1
+            amount = 100
             choice_text = "求穩"
         else:
             return
@@ -560,7 +560,7 @@ async def on_raw_reaction_add(payload):
     else:
         DAILY_CLAIMED_USERS.append(payload.user_id)
         rank = len(DAILY_CLAIMED_USERS)
-        rewards = [5, 3, 1]
+        rewards = [500, 300, 100]
         amount = rewards[rank - 1]
         spots_left = max_users - rank
         
@@ -659,7 +659,7 @@ async def rich(ctx):
         
     await ctx.send(embed=embed)
 
-@client.hybrid_command(name='poor', description='查看折成幣窮人榜 (曾有過幣，現在最窮的 5 名)')
+@client.hybrid_command(name='poor', description='查看折成幣窮人榜 (曾有過幣，現在最窮的 5 名；同餘額以賭博勝率低者優先)')
 async def poor(ctx):
     try:
         with open(COIN_FILE, 'r') as f:
@@ -672,14 +672,29 @@ async def poor(ctx):
         await ctx.send("目前還沒有任何人有過錢...")
         return
 
-    sorted_users = sorted(data.items(), key=lambda item: item[1])
+    try:
+        with open(GAMBLE_STATS_FILE, 'r') as f:
+            gamble_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        gamble_data = {}
+
+    def win_rate(uid):
+        stats = gamble_data.get(uid, {})
+        played = stats.get("games_played", 0)
+        won = stats.get("games_won", 0)
+        return won / played if played > 0 else 0.0
+
+    sorted_users = sorted(data.items(), key=lambda item: (item[1], win_rate(item[0])))
     bottom_5 = sorted_users[:5]
 
     embed = discord.Embed(title="💸 折成幣窮人榜", color=discord.Color.dark_gray())
     for rank, (uid, coins) in enumerate(bottom_5, 1):
         user = client.get_user(int(uid))
         name = user.display_name if user else f"User {uid}"
-        embed.add_field(name=f"第 {rank} 名", value=f"**{name}**: {coins} 幣", inline=False)
+        stats = gamble_data.get(uid, {})
+        played = stats.get("games_played", 0)
+        rate_str = f"勝率 {stats['games_won'] / played:.1%}" if played > 0 else "未曾賭博"
+        embed.add_field(name=f"第 {rank} 名", value=f"**{name}**: {coins} 幣 ({rate_str})", inline=False)
 
     await ctx.send(embed=embed)
 
@@ -747,8 +762,8 @@ async def hongbao(ctx):
         return
 
     amount = random.choices(
-        population=[1, 2, 3, 5, 8, 18], 
-        weights=[30, 30, 20, 10, 8, 2], 
+        population=[100, 200, 300, 500, 800, 1800],
+        weights=[30, 30, 20, 10, 8, 2],
         k=1
     )[0]
 
@@ -759,7 +774,7 @@ async def hongbao(ctx):
     new_balance = update_user_coins(user_id, amount)
     await ctx.send(f"🧨 **新年快樂！** <@{user_id}> 打開了紅包，獲得了 **{amount}** 枚折成幣！ (目前總計: {new_balance} 幣) 🧧")
 
-@client.hybrid_command(name='checkin', description='每日簽到領取 5 折成幣')
+@client.hybrid_command(name='checkin', description='每日簽到領取 500 折成幣')
 async def checkin(ctx):
     user_id = ctx.author.id
     today_str = get_now().strftime('%Y-%m-%d')
@@ -781,8 +796,8 @@ async def checkin(ctx):
     with open(CHECKIN_FILE, 'w') as f:
         json.dump(data, f)
 
-    new_balance = update_user_coins(user_id, 5)
-    await ctx.send(f"✅ 簽到成功！<@{user_id}> 獲得 5 枚折成幣！(目前: {new_balance})")
+    new_balance = update_user_coins(user_id, 500)
+    await ctx.send(f"✅ 簽到成功！<@{user_id}> 獲得 500 枚折成幣！(目前: {new_balance})")
 
 @client.hybrid_command(name='steal', description='偷別人的折成幣 (初始 50% 成功，目標每被偷成功一次機率減半；失敗賠償對方 10%)')
 async def steal(ctx, member: discord.Member):
