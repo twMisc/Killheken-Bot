@@ -274,9 +274,9 @@ async def send_daily_message():
         msg = await channel.send(
             f"大家起來 Game ({holiday_name}) 🎉 假日限定抽獎！(前 5 名)\n"
             f"請點擊下方反應選擇你的命運：\n"
-            f"🤑 **大賭** (20% 中 500 幣，80% 摃龜)\n"
-            f"🎲 **小賭** (50% 中 200 幣，50% 摃龜)\n"
-            f"🪙 **求穩** (保底領 100 幣)"
+            f"🤑 **大賭** (20% 中獎，動態獎勵，80% 摃龜)\n"
+            f"🎲 **小賭** (50% 中獎，動態獎勵，50% 摃龜)\n"
+            f"🪙 **求穩** (保底動態獎勵)"
         )
         DAILY_MESSAGE_ID = msg.id
         DAILY_CLAIMED_USERS.clear()
@@ -289,7 +289,7 @@ async def send_daily_message():
         DAILY_EVENT_TYPE = 'weekday'
         DAILY_CLAIMED_USERS.clear()
 
-        msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前 3 名按反應依序領 500, 300, 100 枚折成幣!)")
+        msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前 3 名按反應，依序領動態折成幣獎勵！)")
         DAILY_MESSAGE_ID = msg.id
 
 def save_dinner_candidates(candidates_list):
