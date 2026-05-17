@@ -829,7 +829,7 @@ async def hongbao(ctx):
     new_balance = update_user_coins(user_id, amount)
     await ctx.send(f"🧨 **新年快樂！** <@{user_id}> 打開了紅包，獲得了 **{amount}** 枚折成幣！({tier_label}) (目前總計: {new_balance} 幣) 🧧")
 
-@client.hybrid_command(name='checkin', description='每日簽到領取 500 折成幣')
+@client.hybrid_command(name='checkin', description='每日簽到領取折成幣')
 async def checkin(ctx):
     user_id = ctx.author.id
     today_str = get_now().strftime('%Y-%m-%d')
