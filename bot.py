@@ -47,6 +47,11 @@ FIXED_DEPOSIT_FILE = 'fixed_deposit.json'
 FIXED_DEPOSIT_INTEREST = 0.05
 FIXED_DEPOSIT_RATIO_LIMIT = 0.3
 
+ECONOMY_SCALE_BASE = 100
+TIER_THRESHOLDS = (0.20, 0.80, 2.00)
+TIER_MULTIPLIERS = (3.0, 1.5, 1.0, 0.8)
+TIER_LABELS = ('赤貧加成', '勞工加成', '標準', '富豪減成')
+
 LOTTO_FILE = 'lotto.json'
 LOTTO_MAX_NUM = 100         
 LOTTO_PRICE = 5            
@@ -210,8 +215,49 @@ def update_user_coins(user_id, amount=1):
     
     with open(COIN_FILE, 'w') as f:
         json.dump(data, f)
-        
+
     return new_balance
+
+def get_median_wealth() -> float:
+    try:
+        with open(COIN_FILE, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return float(ECONOMY_SCALE_BASE)
+
+    all_balances = list(data.values())
+    if len(all_balances) < 3:
+        return float(ECONOMY_SCALE_BASE)
+
+    non_zero = [b for b in all_balances if b > 0]
+    if len(non_zero) < len(all_balances) / 2:
+        if len(non_zero) < 3:
+            return float(ECONOMY_SCALE_BASE)
+        balances = sorted(non_zero)
+    else:
+        balances = sorted(all_balances)
+
+    n = len(balances)
+    mid = n // 2
+    median = (balances[mid - 1] + balances[mid]) / 2.0 if n % 2 == 0 else float(balances[mid])
+    return max(median, float(ECONOMY_SCALE_BASE))
+
+def get_wealth_tier(user_balance: int, median: float) -> int:
+    ratio = user_balance / median if median > 0 else 1.0
+    if ratio < TIER_THRESHOLDS[0]:
+        return 0
+    elif ratio < TIER_THRESHOLDS[1]:
+        return 1
+    elif ratio <= TIER_THRESHOLDS[2]:
+        return 2
+    return 3
+
+def calc_dynamic_reward(base_amount: int, user_balance: int) -> int:
+    median = get_median_wealth()
+    economy_scale = max(1.0, median / ECONOMY_SCALE_BASE)
+    tier = get_wealth_tier(user_balance, median)
+    rng = random.uniform(0.8, 1.2)
+    return max(1, round(base_amount * economy_scale * TIER_MULTIPLIERS[tier] * rng))
 
 @tasks.loop(time=datetime.time(hour=18, tzinfo=TAIPEI_TZ))
 async def send_daily_message():
@@ -228,9 +274,9 @@ async def send_daily_message():
         msg = await channel.send(
             f"大家起來 Game ({holiday_name}) 🎉 假日限定抽獎！(前 5 名)\n"
             f"請點擊下方反應選擇你的命運：\n"
-            f"🤑 **大賭** (20% 中 5 幣，80% 摃龜)\n"
-            f"🎲 **小賭** (50% 中 2 幣，50% 摃龜)\n"
-            f"🪙 **求穩** (保底領 1 幣)"
+            f"🤑 **大賭** (20% 中獎，動態獎勵，80% 摃龜)\n"
+            f"🎲 **小賭** (50% 中獎，動態獎勵，50% 摃龜)\n"
+            f"🪙 **求穩** (保底動態獎勵)"
         )
         DAILY_MESSAGE_ID = msg.id
         DAILY_CLAIMED_USERS.clear()
@@ -243,7 +289,7 @@ async def send_daily_message():
         DAILY_EVENT_TYPE = 'weekday'
         DAILY_CLAIMED_USERS.clear()
 
-        msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前 3 名按反應依序領 5, 3, 1 枚折成幣!)")
+        msg = await channel.send("大家下班 <:camperlol:1401871423332421632> (前 3 名按反應，依序領動態折成幣獎勵！)")
         DAILY_MESSAGE_ID = msg.id
 
 def save_dinner_candidates(candidates_list):
@@ -536,23 +582,34 @@ async def on_raw_reaction_add(payload):
 
     if DAILY_EVENT_TYPE == 'holiday':
         if emoji_clicked == "🤑":
-            amount = 5 if random.random() < 0.2 else 0
+            base_prize = 5
+            won = random.random() < 0.2
             choice_text = "大賭"
         elif emoji_clicked == "🎲":
-            amount = 2 if random.random() < 0.5 else 0
+            base_prize = 2
+            won = random.random() < 0.5
             choice_text = "小賭"
         elif emoji_clicked == "🪙":
-            amount = 1
+            base_prize = 1
+            won = True
             choice_text = "求穩"
         else:
             return
-            
+
         DAILY_CLAIMED_USERS.append(payload.user_id)
         spots_left = max_users - len(DAILY_CLAIMED_USERS)
-        
-        if amount > 0:
+
+        if won:
+            try:
+                with open(COIN_FILE, 'r') as f:
+                    coin_data = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                coin_data = {}
+            current_balance = coin_data.get(str(payload.user_id), 0)
+            amount = calc_dynamic_reward(base_prize, current_balance)
+            tier_label = TIER_LABELS[get_wealth_tier(current_balance, get_median_wealth())]
             new_balance = update_user_coins(payload.user_id, amount)
-            await channel.send(f"🎰 <@{payload.user_id}> 選擇了【{choice_text}】... 恭喜中獎！獲得 **{amount}** 枚折成幣！ (目前: {new_balance})。剩餘名額: {spots_left}")
+            await channel.send(f"🎰 <@{payload.user_id}> 選擇了【{choice_text}】... 恭喜中獎！獲得 **{amount}** 枚折成幣！({tier_label}) (目前: {new_balance})。剩餘名額: {spots_left}")
         else:
             new_balance = update_user_coins(payload.user_id, 0)
             await channel.send(f"💨 <@{payload.user_id}> 選擇了【{choice_text}】... 沒中！一毛都沒拿到 幫QQ (目前: {new_balance})。剩餘名額: {spots_left}")
@@ -560,12 +617,20 @@ async def on_raw_reaction_add(payload):
     else:
         DAILY_CLAIMED_USERS.append(payload.user_id)
         rank = len(DAILY_CLAIMED_USERS)
-        rewards = [5, 3, 1]
-        amount = rewards[rank - 1]
+        base_rewards = [5, 3, 1]
         spots_left = max_users - rank
-        
+
+        try:
+            with open(COIN_FILE, 'r') as f:
+                coin_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            coin_data = {}
+        current_balance = coin_data.get(str(payload.user_id), 0)
+        amount = calc_dynamic_reward(base_rewards[rank - 1], current_balance)
+        tier_label = TIER_LABELS[get_wealth_tier(current_balance, get_median_wealth())]
+
         new_balance = update_user_coins(payload.user_id, amount)
-        await channel.send(f"💰 <@{payload.user_id}> 第 {rank} 名下班打卡成功！獲得 **{amount}** 折成幣 (目前: {new_balance})。剩餘名額: {spots_left}")
+        await channel.send(f"💰 <@{payload.user_id}> 第 {rank} 名下班打卡成功！獲得 **{amount}** 折成幣 ({tier_label}) (目前: {new_balance})。剩餘名額: {spots_left}")
 
 @client.hybrid_command(name='wallet', description='查看你的折成幣數量')
 async def wallet(ctx):
@@ -659,6 +724,47 @@ async def rich(ctx):
         
     await ctx.send(embed=embed)
 
+@client.hybrid_command(name='poor', description='查看折成幣窮光蛋榜 (後 5 名)')
+async def poor(ctx):
+    try:
+        with open(COIN_FILE, 'r') as f:
+            coin_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        await ctx.send("目前還沒有資料...")
+        return
+
+    try:
+        with open(GAMBLE_STATS_FILE, 'r') as f:
+            gamble_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        gamble_data = {}
+
+    if not coin_data:
+        await ctx.send("目前還沒有人有錢...")
+        return
+
+    def win_rate(uid):
+        stats = gamble_data.get(uid, {})
+        played = stats.get("games_played", 0)
+        won = stats.get("games_won", 0)
+        return won / played if played > 0 else 0.0
+
+    sorted_users = sorted(coin_data.items(), key=lambda item: (item[1], win_rate(item[0])))
+    bottom_5 = sorted_users[:5]
+
+    embed = discord.Embed(title="💸 折成幣窮光蛋榜", color=discord.Color.red())
+
+    for rank, (uid, coins) in enumerate(bottom_5, 1):
+        user = client.get_user(int(uid))
+        name = user.display_name if user else f"User {uid}"
+        stats = gamble_data.get(uid, {})
+        played = stats.get("games_played", 0)
+        won = stats.get("games_won", 0)
+        rate_str = f"{won}/{played} ({won/played*100:.0f}%)" if played > 0 else "從未賭博"
+        embed.add_field(name=f"第 {rank} 名", value=f"**{name}**: {coins} 幣\n賭博: {rate_str}", inline=False)
+
+    await ctx.send(embed=embed)
+
 @client.hybrid_command(name='hongbao', description='🧧 春節限定：每天領取一次折成幣紅包！')
 async def hongbao(ctx):
     today_holiday = get_today_holiday()
@@ -682,20 +788,29 @@ async def hongbao(ctx):
         await ctx.send("🧧 你今天已經領過紅包囉！明天再來吧！", ephemeral=True)
         return
 
-    amount = random.choices(
-        population=[1, 2, 3, 5, 8, 18], 
-        weights=[30, 30, 20, 10, 8, 2], 
+    base_amount = random.choices(
+        population=[1, 2, 3, 5, 8, 18],
+        weights=[30, 30, 20, 10, 8, 2],
         k=1
     )[0]
+
+    try:
+        with open(COIN_FILE, 'r') as f:
+            coin_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        coin_data = {}
+    current_balance = coin_data.get(str(user_id), 0)
+    amount = calc_dynamic_reward(base_amount, current_balance)
+    tier_label = TIER_LABELS[get_wealth_tier(current_balance, get_median_wealth())]
 
     data["claimed_users"].append(user_id)
     with open(HONGBAO_FILE, 'w') as f:
         json.dump(data, f)
 
     new_balance = update_user_coins(user_id, amount)
-    await ctx.send(f"🧨 **新年快樂！** <@{user_id}> 打開了紅包，獲得了 **{amount}** 枚折成幣！ (目前總計: {new_balance} 幣) 🧧")
+    await ctx.send(f"🧨 **新年快樂！** <@{user_id}> 打開了紅包，獲得了 **{amount}** 枚折成幣！({tier_label}) (目前總計: {new_balance} 幣) 🧧")
 
-@client.hybrid_command(name='checkin', description='每日簽到領取 5 折成幣')
+@client.hybrid_command(name='checkin', description='每日簽到領取 500 折成幣')
 async def checkin(ctx):
     user_id = ctx.author.id
     today_str = get_now().strftime('%Y-%m-%d')
@@ -717,8 +832,17 @@ async def checkin(ctx):
     with open(CHECKIN_FILE, 'w') as f:
         json.dump(data, f)
 
-    new_balance = update_user_coins(user_id, 5)
-    await ctx.send(f"✅ 簽到成功！<@{user_id}> 獲得 5 枚折成幣！(目前: {new_balance})")
+    try:
+        with open(COIN_FILE, 'r') as f:
+            coin_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        coin_data = {}
+    current_balance = coin_data.get(str(user_id), 0)
+    reward = calc_dynamic_reward(5, current_balance)
+    tier_label = TIER_LABELS[get_wealth_tier(current_balance, get_median_wealth())]
+
+    new_balance = update_user_coins(user_id, reward)
+    await ctx.send(f"✅ 簽到成功！<@{user_id}> 獲得 {reward} 枚折成幣！({tier_label}) (目前: {new_balance})")
 
 @client.hybrid_command(name='steal', description='偷別人的折成幣 (初始 50% 成功，目標每被偷成功一次機率減半；失敗賠償對方 10%)')
 async def steal(ctx, member: discord.Member):
