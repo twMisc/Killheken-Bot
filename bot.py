@@ -31,6 +31,7 @@ MY_TOKEN = TOKEN
 MY_GUILD_ID = discord.Object(GUILD)
 
 TAIPEI_TZ = datetime.timezone(datetime.timedelta(hours=8))
+JAPAN_TRIP_DATE = datetime.datetime(2027, 1, 1, tzinfo=TAIPEI_TZ)
 RESPONSE_LIST = ['誠', '大', '豪', '翔', '抹茶']
 REPLY_RATE = 0.65
 HOLIDAY_MODE = False
@@ -317,13 +318,27 @@ async def delete_dinner(ctx, food: str):
 
 @tasks.loop(time=datetime.time(hour=20, tzinfo=TAIPEI_TZ))
 async def daily_japan_reminder():
+    if get_now().weekday() != 5:
+        return
     channel = client.get_channel(461180385972322306)
-    await channel.send(
-        "🇯🇵 **【日本計畫進度回報】**\n"
-        "<@424569079278338059> 你今天又在擺爛了嗎？\n"
-        "機票不會自己訂、飯店不會自己長出來、行程不會自己規劃。\n"
-        "說好的日本呢？說好的行動力呢？我們都在等你。"
-    )
+    remain_days = (JAPAN_TRIP_DATE - get_now()).days
+    if remain_days > 0:
+        await channel.send(
+            f"🇯🇵 **【日本計畫週報】** 距離出發還有 **{remain_days}** 天\n"
+            "哲誠這週有在動了嗎？\n"
+            "機票不會自己訂、飯店不會自己長出來、行程不會自己規劃。\n"
+            "說好的日本呢？說好的行動力呢？我們都在等你。"
+        )
+    else:
+        await channel.send("🎉 老大已經在日本爽了，回來再說吧！")
+
+@client.hybrid_command(name='remain', description='查看日本之旅倒數天數')
+async def remain(ctx):
+    remain_days = (JAPAN_TRIP_DATE - get_now()).days
+    if remain_days > 0:
+        await ctx.send(f"🇯🇵 離老大日本還有 **{remain_days}** 天，哲誠繼續擺爛吧")
+    else:
+        await ctx.send("🎉 老大已經在日本爽了 <:Kreygasm:527748250900496384>")
 
 @client.hybrid_command(name='sync', description='sync commands')
 @commands.is_owner()
