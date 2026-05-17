@@ -31,6 +31,7 @@ MY_TOKEN = TOKEN
 MY_GUILD_ID = discord.Object(GUILD)
 
 TAIPEI_TZ = datetime.timezone(datetime.timedelta(hours=8))
+JAPAN_TRIP_DATE = datetime.datetime(2027, 1, 1, tzinfo=TAIPEI_TZ)
 RESPONSE_LIST = ['誠', '大', '豪', '翔', '抹茶']
 REPLY_RATE = 0.65
 HOLIDAY_MODE = False
@@ -313,7 +314,9 @@ async def on_ready():
     if not send_daily_message.is_running():
         send_daily_message.start()
     if not daily_lotto_draw.is_running():
-        daily_lotto_draw.start()        
+        daily_lotto_draw.start()
+    if not daily_japan_reminder.is_running():
+        daily_japan_reminder.start()
     await client.change_presence(status=discord.Status.online,
                                  activity=discord.Activity(
                                      type=discord.ActivityType.playing,
@@ -359,13 +362,29 @@ async def delete_dinner(ctx, food: str):
     save_dinner_candidates(DINNER_CANDIDATES)
     await ctx.send(f"已刪除 {food}")
 
-@client.hybrid_command(name='remain', description='問老大何時日本')
-async def remain(ctx):
-    remain_days = (datetime.datetime(2025, 9, 6, tzinfo=TAIPEI_TZ) - get_now()).days
+@tasks.loop(time=datetime.time(hour=20, tzinfo=TAIPEI_TZ))
+async def daily_japan_reminder():
+    if get_now().weekday() != 5:
+        return
+    channel = client.get_channel(461180385972322306)
+    remain_days = (JAPAN_TRIP_DATE - get_now()).days
     if remain_days > 0:
-        await ctx.send(f"離老大日本還有{remain_days}天")
+        await channel.send(
+            f"🇯🇵 **【日本計畫週報】** 距離出發還有 **{remain_days}** 天\n"
+            "哲誠這週有在動了嗎？\n"
+            "機票不會自己訂、飯店不會自己長出來、行程不會自己規劃。\n"
+            "說好的日本呢？說好的行動力呢？我們都在等你。"
+        )
     else:
-        await ctx.send("老大已經在日本爽了 <:Kreygasm:527748250900496384>")
+        await channel.send("🎉 老大已經在日本爽了，回來再說吧！")
+
+@client.hybrid_command(name='remain', description='查看日本之旅倒數天數')
+async def remain(ctx):
+    remain_days = (JAPAN_TRIP_DATE - get_now()).days
+    if remain_days > 0:
+        await ctx.send(f"🇯🇵 離老大日本還有 **{remain_days}** 天，哲誠繼續擺爛吧")
+    else:
+        await ctx.send("🎉 老大已經在日本爽了 <:Kreygasm:527748250900496384>")
 
 @client.hybrid_command(name='sync', description='sync commands')
 @commands.is_owner()
