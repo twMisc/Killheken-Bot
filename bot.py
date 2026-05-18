@@ -212,7 +212,6 @@ def get_today_holiday():
     except:
         return None
 
-@with_lock
 def update_user_coins(user_id, amount=1):
     try:
         with open(COIN_FILE, 'r') as f:
