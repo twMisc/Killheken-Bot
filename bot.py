@@ -1,3 +1,4 @@
+import functools
 import json
 from pathlib import Path
 import random
@@ -61,13 +62,21 @@ LOTTO_MAX_TICKETS = 3
 
 T_OLD = -10**6
 T_NEW = time.time()
-
+data_lock = asyncio.Lock()
+    
 intents = discord.Intents().all()
 intents.presences = True
 intents.guilds = True
 intents.members = True
 client = commands.Bot(command_prefix='$', intents=intents)
 client.owner_ids = ADMIN_LIST
+
+def with_lock(func):
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        async with data_lock:
+            return await func(*args, **kwargs)
+    return wrapper
 
 def get_now():
     return datetime.datetime.now(TAIPEI_TZ)
@@ -203,6 +212,7 @@ def get_today_holiday():
     except:
         return None
 
+@with_lock
 def update_user_coins(user_id, amount=1):
     try:
         with open(COIN_FILE, 'r') as f:
@@ -582,6 +592,7 @@ async def on_message(message):
     await client.process_commands(message)
 
 @client.event
+@with_lock
 async def on_raw_reaction_add(payload):
     global DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS, DAILY_EVENT_TYPE
     
@@ -684,6 +695,7 @@ def update_gamble_stats(user_id, amount, is_win):
 
 @client.hybrid_command(name='gamble', description='賭博：輸入金額，骰出 >50 翻倍，否則歸零')
 @commands.cooldown(1, 3600, commands.BucketType.user)
+@with_lock
 async def gamble(ctx, amount: int):
     if amount <= 0:
         await ctx.send("❌ 賭注必須大於 0")
@@ -785,6 +797,7 @@ async def poor(ctx):
     await ctx.send(embed=embed)
 
 @client.hybrid_command(name='hongbao', description='🧧 春節限定：每天領取一次折成幣紅包！')
+@with_lock
 async def hongbao(ctx):
     today_holiday = get_today_holiday()
     if today_holiday != "春節連假":
@@ -830,6 +843,7 @@ async def hongbao(ctx):
     await ctx.send(f"🧨 **新年快樂！** <@{user_id}> 打開了紅包，獲得了 **{amount}** 枚折成幣！({tier_label}) (目前總計: {new_balance} 幣) 🧧")
 
 @client.hybrid_command(name='checkin', description='每日簽到領取折成幣')
+@with_lock
 async def checkin(ctx):
     user_id = ctx.author.id
     today_str = get_now().strftime('%Y-%m-%d')
@@ -864,6 +878,7 @@ async def checkin(ctx):
     await ctx.send(f"✅ 簽到成功！<@{user_id}> 獲得 {reward} 枚折成幣！({tier_label}) (目前: {new_balance})")
 
 @client.hybrid_command(name='steal', description='偷別人的折成幣 (初始 50% 成功，目標每被偷成功一次機率減半；失敗賠償對方 10%)')
+@with_lock
 async def steal(ctx, member: discord.Member):
     if member.id == ctx.author.id:
         await ctx.send("❌ 你不能偷自己的錢！", ephemeral=True)
@@ -1046,6 +1061,7 @@ async def bank(ctx):
     await ctx.send(embed=embed, ephemeral=True)
 
 @client.hybrid_command(name='deposit', description='將錢存入銀行定存 (一週後領 5% 利息，上限為總資產 30%)')
+@with_lock
 async def deposit(ctx, amount: int):
     if amount <= 0:
         await ctx.send("❌ 存入金額必須大於 0", ephemeral=True)
@@ -1097,6 +1113,7 @@ async def deposit(ctx, amount: int):
     await ctx.send(f"🏦 成功存入 **{amount}** 幣！新一輪定存開始，預計一週後可領取利息。", ephemeral=True)
 
 @client.hybrid_command(name='withdraw', description='提領定存本金與利息 (需期滿 7 天)')
+@with_lock
 async def withdraw(ctx):
     uid_str = str(ctx.author.id)
 
@@ -1131,6 +1148,7 @@ async def withdraw(ctx):
     await ctx.send(f"💰 恭喜！你領回了本金 {principal} 幣以及利息 {interest} 幣，共計 **{total}** 幣！(目前身上: {new_balance})", ephemeral=True)
 
 @client.hybrid_command(name='lotto', description=f'購買大樂透彩券！從 1~{LOTTO_MAX_NUM} 選一個數字 (每張 {LOTTO_PRICE} 幣)')
+@with_lock
 async def lotto(ctx, number: int):
     if number < 1 or number > LOTTO_MAX_NUM:
         await ctx.send(f"❌ 號碼必須在 1 到 {LOTTO_MAX_NUM} 之間！", ephemeral=True)
@@ -1170,6 +1188,7 @@ async def lotto(ctx, number: int):
     await ctx.send(f"🎟️ 購買成功！你選擇了號碼 **{number}**。目前獎金池累積高達 **{lotto_data['pot']}** 幣！(剩餘餘額: {new_balance})")
 
 @tasks.loop(time=datetime.time(hour=21, tzinfo=TAIPEI_TZ))
+@with_lock
 async def daily_lotto_draw():
     channel = client.get_channel(461180385972322306) 
     if channel is None:
