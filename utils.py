@@ -140,7 +140,12 @@ def get_inventory(user_id):
     try:
         with open(INVENTORY_FILE, 'r') as f:
             data = json.load(f)
-            return data.get(str(user_id), {"passives": {}, "consumables": {}})
+            user_inv = data.get(str(user_id), {})
+            if not isinstance(user_inv, dict):
+                user_inv = {}
+            user_inv.setdefault("passives", {})
+            user_inv.setdefault("consumables", {})
+            return user_inv
     except (FileNotFoundError, json.JSONDecodeError):
         return {"passives": {}, "consumables": {}}
 
