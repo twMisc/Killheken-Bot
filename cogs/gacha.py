@@ -230,15 +230,19 @@ class GachaCog(commands.Cog):
             await ctx.send(f"🛡️ 你裝備了 `次數型護盾`！目前護盾層數: {buffs['steal_shield_stacks']}/3")
 
         elif item_code == "sr_tax_audit":
-            if not target: return await ctx.send("❌ 此道具需指定 @對象！", ephemeral=True)
-            if buffs.get("tax_audit_date") == today_str:
-                return await ctx.send("❌ 你今天已經發動過查水表了！明天的公文還沒批下來。", ephemeral=True)
+            if not target:
+                return await ctx.send("❌ 此道具需指定 @對象！", ephemeral=True)
+
+            audit_key = f"tax_audit_date_{target.id}"
+            if buffs.get(audit_key) == today_str:
+                return await ctx.send("❌ 你今天已經對這個人發動過查水表了！明天的公文還沒批下來。", ephemeral=True)
             
             target_balance = utils.update_user_coins(target.id, 0)
             damage = int(target_balance * 0.02)
             if damage > 0:
                 utils.update_user_coins(target.id, -damage)
-            buffs["tax_audit_date"] = today_str
+
+            buffs[audit_key] = today_str
             utils.save_buffs(user_id, buffs)
             await ctx.send(f"🔥 國稅局出動！{target.mention} 遭到了 `強制查水表`，**{damage}** 枚折成幣瞬間被依法銷毀！")
 
