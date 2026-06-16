@@ -205,6 +205,7 @@ class GachaCog(commands.Cog):
 
         elif item_code == "r_purify_debuff":
             buffs["gamble_ban_until"] = 0
+            buffs["emoji_curse_stacks"] = 0
             utils.save_buffs(user_id, buffs)
             await ctx.send("✨ 你使用了 `撤銷公文`，清除了身上所有的負面狀態！")
 
