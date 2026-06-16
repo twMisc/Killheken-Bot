@@ -156,9 +156,7 @@ class GachaCog(commands.Cog):
         achievement_p_text = ""
         
         for item, level in inventory["passives"].items():
-            if item.startswith("s_"):
-                pass
-            
+            # inventory["passives"] contains both S-card passives (ssr_*) and P-card achievements (p_*); split them below.
             if item in P_CARDS["SSR"] or item in P_CARDS["SR"] or item in P_CARDS["R"]:
                 achievement_p_text += f"🏆 **{ITEM_NAMES.get(item, '🔒 [未知]')}**\n"
             else:
