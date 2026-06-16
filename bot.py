@@ -446,6 +446,7 @@ async def toggle_holiday(ctx):
     await ctx.send(f"手動假日模式已{status}。")
 
 @client.event
+@utils.with_lock
 async def on_message(message):
     global REPLY_RATE, T_OLD, T_NEW, SKULL_COUNT, EMOJIS
 
