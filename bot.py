@@ -1135,8 +1135,12 @@ async def lotto(ctx, number: int):
     if uid_str not in lotto_data["tickets"]:
         lotto_data["tickets"][uid_str] = []
         
-    if len(lotto_data["tickets"][uid_str]) >= utils.LOTTO_MAX_TICKETS:
-        await ctx.send(f"❌ 你今天已經買了 {utils.LOTTO_MAX_TICKETS} 張彩券了，留點機會給別人吧！", ephemeral=True)
+    buffs = utils.get_buffs(ctx.author.id)
+    today_str = utils.get_now().strftime('%Y-%m-%d')
+    max_tickets = utils.LOTTO_MAX_TICKETS + (3 if buffs.get("lotto_boost_date") == today_str else 0)
+
+    if len(lotto_data["tickets"][uid_str]) >= max_tickets:
+        await ctx.send(f"❌ 你今天已經買了 {max_tickets} 張彩券了，留點機會給別人吧！", ephemeral=True)
         return
         
     if number in lotto_data["tickets"][uid_str]:
