@@ -1110,7 +1110,7 @@ async def withdraw(ctx):
 
     await ctx.send(f"💰 恭喜！你領回了本金 {principal} 幣以及利息 {interest} 幣，共計 **{total}** 幣！(目前身上: {new_balance})", ephemeral=True)
 
-@client.hybrid_command(name='lotto', description=f'購買大樂透彩券！從 1~100 選一個數字')
+@client.hybrid_command(name='lotto', description=f'購買大樂透彩券！從 1~{utils.LOTTO_MAX_NUM} 選一個數字 (每張 {utils.LOTTO_PRICE} 幣)')
 @utils.with_lock
 async def lotto(ctx, number: int):
     if number < 1 or number > utils.LOTTO_MAX_NUM:
