@@ -11,6 +11,7 @@ import subprocess
 import datetime
 from discord.ext import commands, tasks
 from discord.ui import Button, View
+import utils 
 
 TOKEN = Path('token').read_text().strip()
 GUILD = Path('guild').read_text().strip()
@@ -31,38 +32,16 @@ with open('skull_count.json') as f:
 MY_TOKEN = TOKEN
 MY_GUILD_ID = discord.Object(GUILD)
 
-TAIPEI_TZ = datetime.timezone(datetime.timedelta(hours=8))
-JAPAN_TRIP_DATE = datetime.datetime(2027, 1, 1, tzinfo=TAIPEI_TZ)
+JAPAN_TRIP_DATE = datetime.datetime(2027, 1, 1, tzinfo=utils.TAIPEI_TZ)
 RESPONSE_LIST = ['誠', '大', '豪', '翔', '抹茶']
 REPLY_RATE = 0.65
 HOLIDAY_MODE = False
 DAILY_MESSAGE_ID = None
 DAILY_CLAIMED_USERS = [] 
-COIN_FILE = 'coins.json'
-HOLIDAY_FILE = 'holidays.json'
 DAILY_EVENT_TYPE = 'weekday'
-HONGBAO_FILE = 'hongbao.json'
-CHECKIN_FILE = 'checkin.json'
-STEAL_FILE = 'steal.json'
-GAMBLE_STATS_FILE = 'gamble_stats.json'
-FIXED_DEPOSIT_FILE = 'fixed_deposit.json'
-FIXED_DEPOSIT_INTEREST = 0.05
-FIXED_DEPOSIT_RATIO_LIMIT = 0.3
-
-ECONOMY_SCALE_BASE = 100
-TIER_THRESHOLDS = (0.20, 0.80, 2.00)
-TIER_MULTIPLIERS = (3.0, 1.5, 1.0, 0.8)
-TIER_LABELS = ('赤貧加成', '勞工加成', '標準', '富豪減成')
-
-LOTTO_FILE = 'lotto.json'
-LOTTO_MAX_NUM = 100         
-LOTTO_PRICE = 5            
-LOTTO_TO_POT = 5          
-LOTTO_MAX_TICKETS = 3
 
 T_OLD = -10**6
 T_NEW = time.time()
-data_lock = asyncio.Lock()
     
 intents = discord.Intents().all()
 intents.presences = True
@@ -70,30 +49,6 @@ intents.guilds = True
 intents.members = True
 client = commands.Bot(command_prefix='$', intents=intents)
 client.owner_ids = ADMIN_LIST
-
-def with_lock(func):
-    @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
-        async with data_lock:
-            return await func(*args, **kwargs)
-    return wrapper
-
-def get_now():
-    return datetime.datetime.now(TAIPEI_TZ)
-
-def get_lotto_data():
-    try:
-        with open(LOTTO_FILE, 'r') as f:
-            data = json.load(f)
-            if "pot" not in data: data["pot"] = 0
-            if "tickets" not in data: data["tickets"] = {}
-            return data
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {"pot": 0, "tickets": {}}
-
-def save_lotto_data(data):
-    with open(LOTTO_FILE, 'w') as f:
-        json.dump(data, f)
 
 class PollView(View):
     def __init__(self, title, options, multiple_choice=False):
@@ -205,75 +160,18 @@ def get_rate():
     
 def get_today_holiday():
     try:
-        with open(HOLIDAY_FILE, 'r', encoding='utf-8') as f:
+        with open(utils.HOLIDAY_FILE, 'r', encoding='utf-8') as f:
             holidays = json.load(f)
-        today_str = get_now().strftime('%Y-%m-%d')
+        today_str = utils.get_now().strftime('%Y-%m-%d')
         return holidays.get(today_str)
     except:
         return None
 
-def update_user_coins(user_id, amount=1):
-    try:
-        with open(COIN_FILE, 'r') as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = {}
-    
-    uid_str = str(user_id)
-    new_balance = data.get(uid_str, 0) + amount
-    data[uid_str] = new_balance
-    
-    with open(COIN_FILE, 'w') as f:
-        json.dump(data, f)
-
-    return new_balance
-
-def get_median_wealth() -> float:
-    try:
-        with open(COIN_FILE, 'r') as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return float(ECONOMY_SCALE_BASE)
-
-    all_balances = list(data.values())
-    if len(all_balances) < 3:
-        return float(ECONOMY_SCALE_BASE)
-
-    non_zero = [b for b in all_balances if b > 0]
-    if len(non_zero) < len(all_balances) / 2:
-        if len(non_zero) < 3:
-            return float(ECONOMY_SCALE_BASE)
-        balances = sorted(non_zero)
-    else:
-        balances = sorted(all_balances)
-
-    n = len(balances)
-    mid = n // 2
-    median = (balances[mid - 1] + balances[mid]) / 2.0 if n % 2 == 0 else float(balances[mid])
-    return max(median, float(ECONOMY_SCALE_BASE))
-
-def get_wealth_tier(user_balance: int, median: float) -> int:
-    ratio = user_balance / median if median > 0 else 1.0
-    if ratio < TIER_THRESHOLDS[0]:
-        return 0
-    elif ratio < TIER_THRESHOLDS[1]:
-        return 1
-    elif ratio <= TIER_THRESHOLDS[2]:
-        return 2
-    return 3
-
-def calc_dynamic_reward(base_amount: int, user_balance: int) -> int:
-    median = get_median_wealth()
-    economy_scale = max(1.0, median / ECONOMY_SCALE_BASE)
-    tier = get_wealth_tier(user_balance, median)
-    rng = random.uniform(0.8, 1.2)
-    return max(1, round(base_amount * economy_scale * TIER_MULTIPLIERS[tier] * rng))
-
-@tasks.loop(time=datetime.time(hour=18, tzinfo=TAIPEI_TZ))
+@tasks.loop(time=datetime.time(hour=18, tzinfo=utils.TAIPEI_TZ))
 async def send_daily_message():
     global HOLIDAY_MODE, DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS, DAILY_EVENT_TYPE
     
-    is_weekday = get_now().weekday() < 5
+    is_weekday = utils.get_now().weekday() < 5
     channel = client.get_channel(461180385972322306)
     today_holiday = get_today_holiday()
     
@@ -316,6 +214,15 @@ async def on_presence_update(before, after):
             await channel.edit(name='折成在公司滑手機')
         elif after.status == discord.Status.offline:
             await channel.edit(name='折成在努力上班')
+
+@client.event
+async def setup_hook():
+    """啟動時載入所有的 Cogs"""
+    try:
+        await client.load_extension("cogs.gacha")
+        print("Gacha Cog loaded successfully.")
+    except Exception as e:
+        print(f"Failed to load Gacha Cog or it doesn't exist yet: {e}")
 
 @client.event
 async def on_ready():
@@ -371,12 +278,12 @@ async def delete_dinner(ctx, food: str):
     save_dinner_candidates(DINNER_CANDIDATES)
     await ctx.send(f"已刪除 {food}")
 
-@tasks.loop(time=datetime.time(hour=20, tzinfo=TAIPEI_TZ))
+@tasks.loop(time=datetime.time(hour=20, tzinfo=utils.TAIPEI_TZ))
 async def daily_japan_reminder():
-    if get_now().weekday() != 5:
+    if utils.get_now().weekday() != 5:
         return
     channel = client.get_channel(461180385972322306)
-    remain_days = (JAPAN_TRIP_DATE - get_now()).days
+    remain_days = (JAPAN_TRIP_DATE - utils.get_now()).days
     if remain_days > 0:
         await channel.send(
             f"🇯🇵 **【日本計畫週報】** 距離出發還有 **{remain_days}** 天\n"
@@ -389,7 +296,7 @@ async def daily_japan_reminder():
 
 @client.hybrid_command(name='remain', description='查看日本之旅倒數天數')
 async def remain(ctx):
-    remain_days = (JAPAN_TRIP_DATE - get_now()).days
+    remain_days = (JAPAN_TRIP_DATE - utils.get_now()).days
     if remain_days > 0:
         await ctx.send(f"🇯🇵 離老大日本還有 **{remain_days}** 天，哲誠繼續擺爛吧")
     else:
@@ -439,11 +346,11 @@ async def poll(ctx, title: str, options: str, multiple_choice: bool = False):
     view = PollView(title, option_list, multiple_choice)
     await ctx.send(embed=view.create_embed(), view=view)
 
-@tasks.loop(time=datetime.time(hour=10, tzinfo=TAIPEI_TZ))
+@tasks.loop(time=datetime.time(hour=10, tzinfo=utils.TAIPEI_TZ))
 async def send_morning_message():
-    if get_now().weekday() < 5:
+    if utils.get_now().weekday() < 5:
         channel = client.get_channel(461180385972322306)
-        remain_days = (datetime.datetime(2025, 1, 20, tzinfo=TAIPEI_TZ) - get_now()).days
+        remain_days = (datetime.datetime(2025, 1, 20, tzinfo=utils.TAIPEI_TZ) - utils.get_now()).days
         
         greetings = [
             "早安，大家！哲誠祝你們有個美好的一天！",
@@ -489,19 +396,19 @@ async def on_command_error(ctx, exception):
 
 @client.hybrid_command(name='free', description='查看哲誠米蟲的天數')
 async def free(ctx):
-    elapsed = get_now() - datetime.datetime(2025, 8, 1, tzinfo=TAIPEI_TZ)
+    elapsed = utils.get_now() - datetime.datetime(2025, 8, 1, tzinfo=utils.TAIPEI_TZ)
     await ctx.send(f"今天是哲誠當米蟲的第 {elapsed.days} 天。")
 
 @client.hybrid_command(name='nextholiday', description='查看下一個連假')
 async def nextholiday(ctx):
     try:
-        with open(HOLIDAY_FILE, 'r', encoding='utf-8') as f:
+        with open(utils.HOLIDAY_FILE, 'r', encoding='utf-8') as f:
             holidays = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         await ctx.send("找不到假日名單。")
         return
 
-    today = get_now().date()
+    today = utils.get_now().date()
     today_str = today.strftime('%Y-%m-%d')
     response_lines = []
     today_holiday_name = holidays.get(today_str)
@@ -541,6 +448,20 @@ async def toggle_holiday(ctx):
 @client.event
 async def on_message(message):
     global REPLY_RATE, T_OLD, T_NEW, SKULL_COUNT, EMOJIS
+
+    if message.author == client.user:
+        return
+
+    # 攔截並觸發主管的凝視 Buff
+    user_buffs = utils.get_buffs(message.author.id)
+    if user_buffs.get("emoji_curse_stacks", 0) > 0:
+        emojis_to_add = ["🤡", "👀", "👎"]
+        try:
+            await message.add_reaction(random.choice(emojis_to_add))
+        except:
+            pass
+        user_buffs["emoji_curse_stacks"] -= 1
+        utils.save_buffs(message.author.id, user_buffs)    
     
     if message.author.id == 424569079278338059:
         for ej, count in SKULL_COUNT.items():
@@ -591,7 +512,7 @@ async def on_message(message):
     await client.process_commands(message)
 
 @client.event
-@with_lock
+@utils.with_lock
 async def on_raw_reaction_add(payload):
     global DAILY_MESSAGE_ID, DAILY_CLAIMED_USERS, DAILY_EVENT_TYPE
     
@@ -630,17 +551,17 @@ async def on_raw_reaction_add(payload):
 
         if won:
             try:
-                with open(COIN_FILE, 'r') as f:
+                with open(utils.COIN_FILE, 'r') as f:
                     coin_data = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 coin_data = {}
             current_balance = coin_data.get(str(payload.user_id), 0)
-            amount = calc_dynamic_reward(base_prize, current_balance)
-            tier_label = TIER_LABELS[get_wealth_tier(current_balance, get_median_wealth())]
-            new_balance = update_user_coins(payload.user_id, amount)
+            amount = utils.calc_dynamic_reward(base_prize, current_balance)
+            tier_label = utils.TIER_LABELS[utils.get_wealth_tier(current_balance, utils.get_median_wealth())]
+            new_balance = utils.update_user_coins(payload.user_id, amount)
             await channel.send(f"🎰 <@{payload.user_id}> 選擇了【{choice_text}】... 恭喜中獎！獲得 **{amount}** 枚折成幣！({tier_label}) (目前: {new_balance})。剩餘名額: {spots_left}")
         else:
-            new_balance = update_user_coins(payload.user_id, 0)
+            new_balance = utils.update_user_coins(payload.user_id, 0)
             await channel.send(f"💨 <@{payload.user_id}> 選擇了【{choice_text}】... 沒中！一毛都沒拿到 幫QQ (目前: {new_balance})。剩餘名額: {spots_left}")
 
     else:
@@ -650,21 +571,21 @@ async def on_raw_reaction_add(payload):
         spots_left = max_users - rank
 
         try:
-            with open(COIN_FILE, 'r') as f:
+            with open(utils.COIN_FILE, 'r') as f:
                 coin_data = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             coin_data = {}
         current_balance = coin_data.get(str(payload.user_id), 0)
-        amount = calc_dynamic_reward(base_rewards[rank - 1], current_balance)
-        tier_label = TIER_LABELS[get_wealth_tier(current_balance, get_median_wealth())]
+        amount = utils.calc_dynamic_reward(base_rewards[rank - 1], current_balance)
+        tier_label = utils.TIER_LABELS[utils.get_wealth_tier(current_balance, utils.get_median_wealth())]
 
-        new_balance = update_user_coins(payload.user_id, amount)
+        new_balance = utils.update_user_coins(payload.user_id, amount)
         await channel.send(f"💰 <@{payload.user_id}> 第 {rank} 名下班打卡成功！獲得 **{amount}** 折成幣 ({tier_label}) (目前: {new_balance})。剩餘名額: {spots_left}")
 
 @client.hybrid_command(name='wallet', description='查看你的折成幣數量')
 async def wallet(ctx):
     try:
-        with open(COIN_FILE, 'r') as f:
+        with open(utils.COIN_FILE, 'r') as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         data = {}
@@ -672,37 +593,22 @@ async def wallet(ctx):
     balance = data.get(str(ctx.author.id), 0)
     await ctx.send(f"<@{ctx.author.id}> 你目前擁有 {balance} 枚折成幣 💰")
 
-def update_gamble_stats(user_id, amount, is_win):
-    """更新使用者的賭博統計資料"""
-    try:
-        with open(GAMBLE_STATS_FILE, 'r') as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = {}
-        
-    uid_str = str(user_id)
-    if uid_str not in data:
-        data[uid_str] = {"games_played": 0, "games_won": 0, "net_profit": 0}
-        
-    data[uid_str]["games_played"] += 1
-    if is_win:
-        data[uid_str]["games_won"] += 1
-    data[uid_str]["net_profit"] += amount
-    
-    with open(GAMBLE_STATS_FILE, 'w') as f:
-        json.dump(data, f)
-
 @client.hybrid_command(name='gamble', description='賭博：輸入金額，骰出 >50 翻倍，否則歸零')
 @commands.cooldown(1, 3600, commands.BucketType.user)
-@with_lock
+@utils.with_lock
 async def gamble(ctx, amount: int):
+    buffs = utils.get_buffs(ctx.author.id)
+    if buffs.get("gamble_ban_until", 0) > utils.get_now().timestamp():
+        await ctx.send("🚫 你身上還有 `禁賭令`！目前被拒絕進入賭場。", ephemeral=True)
+        return
+    
     if amount <= 0:
         await ctx.send("❌ 賭注必須大於 0")
         ctx.command.reset_cooldown(ctx)
         return
         
     try:
-        with open(COIN_FILE, 'r') as f:
+        with open(utils.COIN_FILE, 'r') as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         data = {}
@@ -716,23 +622,46 @@ async def gamble(ctx, amount: int):
         
     roll = random.randint(1, 100)
     if roll > 50:
-        new_balance = update_user_coins(ctx.author.id, amount)
-        update_gamble_stats(ctx.author.id, amount, True)
+        new_balance = utils.update_user_coins(ctx.author.id, amount)
+        utils.update_gamble_stats(ctx.author.id, amount, True)
         await ctx.send(f"🎲 你骰出了 **{roll}**！贏了！獲得 {amount} 枚折成幣 (目前: {new_balance}) 🎉")
     else:
-        new_balance = update_user_coins(ctx.author.id, -amount)
-        update_gamble_stats(ctx.author.id, -amount, False)
+        # 輸錢時：依序檢查 保險 -> SSR 被動
+        inventory = utils.get_inventory(ctx.author.id)
+        ssr_level = inventory["passives"].get("ssr_gamble_refund", 0)
+        refund_chance = 0.05 + (0.05 * ssr_level) # Lv1:10% ~ Lv5:30%
 
-        lotto_data = get_lotto_data()
-        lotto_data["pot"] += amount
-        save_lotto_data(lotto_data)
-        
-        await ctx.send(f"🎲 你骰出了 **{roll}**... 輸光光 💸 (目前: {new_balance})\n*(你的 **{amount}** 幣已全數贊助至大樂透獎金池！感謝老闆！)*")        
+        if buffs.get("gamble_insurance", 0) > 0:
+            # 消耗保險理賠 (最高 100 萬)
+            buffs["gamble_insurance"] = 0
+            utils.save_buffs(ctx.author.id, buffs)
+            refund_amount = min(amount, 1000000)
+            actual_loss = amount - refund_amount
+            new_balance = utils.update_user_coins(ctx.author.id, -actual_loss)
+            utils.update_gamble_stats(ctx.author.id, -actual_loss, False)
+            await ctx.send(f"🎲 你骰出了 **{roll}**... 但📑**賭場保險**生效了！系統理賠了 {refund_amount} 幣給你！(目前餘額: {new_balance})")
+            
+        elif ssr_level > 0 and random.random() < refund_chance:
+            # SSR 被動止損觸發
+            refund_amount = int(amount * 0.5)
+            actual_loss = amount - refund_amount
+            new_balance = utils.update_user_coins(ctx.author.id, -actual_loss)
+            utils.update_gamble_stats(ctx.author.id, -actual_loss, False)
+            await ctx.send(f"🎲 你骰出了 **{roll}**... 但🌟**【賭博止損 Lv.{ssr_level}】**發動！你幸運地要回了一半的賭資。(目前餘額: {new_balance})")
+            
+        else:
+            # 正常輸錢
+            new_balance = utils.update_user_coins(ctx.author.id, -amount)
+            utils.update_gamble_stats(ctx.author.id, -amount, False)
+            lotto_data = utils.get_lotto_data()
+            lotto_data["pot"] += amount
+            utils.save_lotto_data(lotto_data)
+            await ctx.send(f"🎲 你骰出了 **{roll}**... 輸光光 💸 (目前: {new_balance})\n*(你的 **{amount}** 幣已全數贊助至大樂透獎金池！)*")
 
 @client.hybrid_command(name='rich', description='查看折成幣富豪榜 (前 5 名)')
 async def rich(ctx):
     try:
-        with open(COIN_FILE, 'r') as f:
+        with open(utils.COIN_FILE, 'r') as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         await ctx.send("目前還沒有人有錢...")
@@ -757,14 +686,14 @@ async def rich(ctx):
 @client.hybrid_command(name='poor', description='查看折成幣窮光蛋榜 (後 5 名)')
 async def poor(ctx):
     try:
-        with open(COIN_FILE, 'r') as f:
+        with open(utils.COIN_FILE, 'r') as f:
             coin_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         await ctx.send("目前還沒有資料...")
         return
 
     try:
-        with open(GAMBLE_STATS_FILE, 'r') as f:
+        with open(utils.GAMBLE_STATS_FILE, 'r') as f:
             gamble_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         gamble_data = {}
@@ -796,7 +725,7 @@ async def poor(ctx):
     await ctx.send(embed=embed)
 
 @client.hybrid_command(name='hongbao', description='🧧 春節限定：每天領取一次折成幣紅包！')
-@with_lock
+@utils.with_lock
 async def hongbao(ctx):
     today_holiday = get_today_holiday()
     if today_holiday != "春節連假":
@@ -804,10 +733,10 @@ async def hongbao(ctx):
         return
 
     user_id = ctx.author.id
-    today_str = get_now().strftime('%Y-%m-%d')
+    today_str = utils.get_now().strftime('%Y-%m-%d')
 
     try:
-        with open(HONGBAO_FILE, 'r') as f:
+        with open(utils.HONGBAO_FILE, 'r') as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         data = {"date": "", "claimed_users": []}
@@ -826,29 +755,29 @@ async def hongbao(ctx):
     )[0]
 
     try:
-        with open(COIN_FILE, 'r') as f:
+        with open(utils.COIN_FILE, 'r') as f:
             coin_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         coin_data = {}
     current_balance = coin_data.get(str(user_id), 0)
-    amount = calc_dynamic_reward(base_amount, current_balance)
-    tier_label = TIER_LABELS[get_wealth_tier(current_balance, get_median_wealth())]
+    amount = utils.calc_dynamic_reward(base_amount, current_balance)
+    tier_label = utils.TIER_LABELS[utils.get_wealth_tier(current_balance, utils.get_median_wealth())]
 
     data["claimed_users"].append(user_id)
-    with open(HONGBAO_FILE, 'w') as f:
+    with open(utils.HONGBAO_FILE, 'w') as f:
         json.dump(data, f)
 
-    new_balance = update_user_coins(user_id, amount)
+    new_balance = utils.update_user_coins(user_id, amount)
     await ctx.send(f"🧨 **新年快樂！** <@{user_id}> 打開了紅包，獲得了 **{amount}** 枚折成幣！({tier_label}) (目前總計: {new_balance} 幣) 🧧")
 
 @client.hybrid_command(name='checkin', description='每日簽到領取折成幣')
-@with_lock
+@utils.with_lock
 async def checkin(ctx):
     user_id = ctx.author.id
-    today_str = get_now().strftime('%Y-%m-%d')
+    today_str = utils.get_now().strftime('%Y-%m-%d')
 
     try:
-        with open(CHECKIN_FILE, 'r') as f:
+        with open(utils.CHECKIN_FILE, 'r') as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         data = {"date": "", "claimed_users": []}
@@ -861,23 +790,23 @@ async def checkin(ctx):
         return
 
     data["claimed_users"].append(user_id)
-    with open(CHECKIN_FILE, 'w') as f:
+    with open(utils.CHECKIN_FILE, 'w') as f:
         json.dump(data, f)
 
     try:
-        with open(COIN_FILE, 'r') as f:
+        with open(utils.COIN_FILE, 'r') as f:
             coin_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         coin_data = {}
     current_balance = coin_data.get(str(user_id), 0)
-    reward = calc_dynamic_reward(5, current_balance)
-    tier_label = TIER_LABELS[get_wealth_tier(current_balance, get_median_wealth())]
+    reward = utils.calc_dynamic_reward(5, current_balance)
+    tier_label = utils.TIER_LABELS[utils.get_wealth_tier(current_balance, utils.get_median_wealth())]
 
-    new_balance = update_user_coins(user_id, reward)
+    new_balance = utils.update_user_coins(user_id, reward)
     await ctx.send(f"✅ 簽到成功！<@{user_id}> 獲得 {reward} 枚折成幣！({tier_label}) (目前: {new_balance})")
 
 @client.hybrid_command(name='steal', description='偷別人的折成幣 (初始 50% 成功，目標每被偷成功一次機率減半；失敗賠償對方 10%)')
-@with_lock
+@utils.with_lock
 async def steal(ctx, member: discord.Member):
     if member.id == ctx.author.id:
         await ctx.send("❌ 你不能偷自己的錢！", ephemeral=True)
@@ -888,10 +817,10 @@ async def steal(ctx, member: discord.Member):
         return
 
     user_id = ctx.author.id
-    today_str = get_now().strftime('%Y-%m-%d')
+    today_str = utils.get_now().strftime('%Y-%m-%d')
 
     try:
-        with open(STEAL_FILE, 'r') as f:
+        with open(utils.STEAL_FILE, 'r') as f:
             steal_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         steal_data = {"date": "", "claimed_users": [], "robbed_users": []}
@@ -906,12 +835,9 @@ async def steal(ctx, member: discord.Member):
         await ctx.send("🕵️ 你今天已經偷過錢了！適可而止吧，明天再來。", ephemeral=True)
         return
 
-    # 計算目標目前被偷成功的次數，決定成功率
-    rob_success_count = steal_data["robbed_users"].count(member.id)
-    current_chance = 0.5 * (0.5 ** rob_success_count)
-
+    # 取得雙方餘額
     try:
-        with open(COIN_FILE, 'r') as f:
+        with open(utils.COIN_FILE, 'r') as f:
             coins_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         coins_data = {}
@@ -925,38 +851,75 @@ async def steal(ctx, member: discord.Member):
         await ctx.send(f"❌ **{member.display_name}** 身上一毛錢都沒有，是要偷個毛？", ephemeral=True)
         return
 
+    # 讀取攻擊者的 SSR 被動 (神偷體質)
+    attacker_inv = utils.get_inventory(user_id)
+    ssr_steal_level = attacker_inv.get("passives", {}).get("ssr_steal_buff", 0)
+
+    # 計算目標目前被偷成功的次數，決定成功率
+    rob_success_count = steal_data["robbed_users"].count(member.id)
+    current_chance = 0.5 * (0.5 ** rob_success_count)
+    
+    # 加上 SSR 被動的神偷加成 (每級 +5%)
+    current_chance += (0.05 * ssr_steal_level)
+
     is_success = random.random() < current_chance
+
+    # 計算失敗/撞盾時的賠償金 (SSR 被動減免：每級 -10%)
+    base_penalty = max(1, int(attacker_balance * 0.1))
+    reduction = 0.10 * ssr_steal_level
+    penalty = int(base_penalty * (1 - reduction))
+    penalty = min(penalty, attacker_balance)
     
     if is_success:
-        # 確保偷取的金額不會超過目標擁有的金額
+        # 成功偷到，但要檢查目標有沒有掛載「次數型護盾」
+        target_buffs = utils.get_buffs(member.id)
+        if target_buffs.get("steal_shield_stacks", 0) > 0:
+            # 扣除護盾層數
+            target_buffs["steal_shield_stacks"] -= 1
+            utils.save_buffs(member.id, target_buffs)
+            
+            # 攻擊者被護盾彈開，依然要賠錢
+            if penalty > 0:
+                utils.update_user_coins(member.id, penalty)
+                new_balance = utils.update_user_coins(ctx.author.id, -penalty)
+            else:
+                new_balance = attacker_balance
+                
+            await ctx.send(f"💥 <@{ctx.author.id}> 試圖偷竊，但撞上了 {member.mention} 的 🛡️**次數型護盾**！護盾破裂 1 層，你被震飛並損失了 **{penalty}** 枚折成幣。(目前總計: {new_balance} 幣)")
+            
+            # 即使被護盾擋下，依然算作使用了今日的偷竊次數
+            steal_data["claimed_users"].append(user_id)
+            with open(utils.STEAL_FILE, 'w') as f:
+                json.dump(steal_data, f)
+            return
+
+        # 正常偷竊成功
         amount = max(1, int(target_balance * 0.1))
-        update_user_coins(member.id, -amount)
-        new_balance = update_user_coins(ctx.author.id, amount)
+        utils.update_user_coins(member.id, -amount)
+        new_balance = utils.update_user_coins(ctx.author.id, amount)
         
         steal_data["robbed_users"].append(member.id)
         
         await ctx.send(f"🥷 <@{ctx.author.id}> 趁著 <@{member.id}> 不注意，偷偷摸走了 **{amount}** 枚折成幣！(目前總計: {new_balance} 幣，成功率: {current_chance:.1%})")
     else:
-        # 確保賠償的金額不會超過小偷擁有的金額
-        penalty = max(1, int(attacker_balance * 0.1))
-        penalty = min(penalty, attacker_balance)
-        
+        # 正常偷竊失敗
         if penalty > 0:
-            update_user_coins(member.id, penalty)
-            new_balance = update_user_coins(ctx.author.id, -penalty)
+            utils.update_user_coins(member.id, penalty)
+            new_balance = utils.update_user_coins(ctx.author.id, -penalty)
         else:
             new_balance = attacker_balance
         
         await ctx.send(f"💨 <@{ctx.author.id}> 剛伸手進 <@{member.id}> 的口袋，就被對方發現了！只好尷尬地收手，並賠償了 **{penalty}** 枚折成幣... (目前總計: {new_balance} 幣，成功率: {current_chance:.1%})")
     
+    # 紀錄今日已偷竊
     steal_data["claimed_users"].append(user_id)
-    with open(STEAL_FILE, 'w') as f:
+    with open(utils.STEAL_FILE, 'w') as f:
         json.dump(steal_data, f)
 
 @client.hybrid_command(name='mygamble', description='查看自己的賭博統計 (次數、勝率、淨利)')
 async def mygamble(ctx):
     try:
-        with open(GAMBLE_STATS_FILE, 'r') as f:
+        with open(utils.GAMBLE_STATS_FILE, 'r') as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         await ctx.send("📊 你還沒有任何賭博紀錄喔！快去 /gamble 試試手氣吧！")
@@ -986,7 +949,7 @@ async def mygamble(ctx):
 @client.hybrid_command(name='gambletop', description='查看賭神排行榜 (依總淨利排序)')
 async def gambletop(ctx):
     try:
-        with open(GAMBLE_STATS_FILE, 'r') as f:
+        with open(utils.GAMBLE_STATS_FILE, 'r') as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         await ctx.send("目前賭場空蕩蕩，還沒有人有紀錄...")
@@ -1022,7 +985,7 @@ async def gambletop(ctx):
 @client.hybrid_command(name='bank', description='查看你的銀行定存狀態')
 async def bank(ctx):
     try:
-        with open(FIXED_DEPOSIT_FILE, 'r') as f:
+        with open(utils.FIXED_DEPOSIT_FILE, 'r') as f:
             bank_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         bank_data = {}
@@ -1035,11 +998,11 @@ async def bank(ctx):
         return
 
     principal = user_bank["principal"]
-    start_time = datetime.datetime.fromtimestamp(user_bank["start_time"], TAIPEI_TZ)
+    start_time = datetime.datetime.fromtimestamp(user_bank["start_time"], utils.TAIPEI_TZ)
     maturity_time = start_time + datetime.timedelta(days=7)
-    now = get_now()
+    now = utils.get_now()
     
-    interest = int(principal * FIXED_DEPOSIT_INTEREST)
+    interest = int(principal * utils.FIXED_DEPOSIT_INTEREST)
     
     embed = discord.Embed(title="🏦 折成銀行 - 定存明細", color=discord.Color.blue())
     embed.add_field(name="💰 定存本金", value=f"{principal} 幣", inline=True)
@@ -1060,7 +1023,7 @@ async def bank(ctx):
     await ctx.send(embed=embed, ephemeral=True)
 
 @client.hybrid_command(name='deposit', description='將錢存入銀行定存 (一週後領 5% 利息，上限為總資產 30%)')
-@with_lock
+@utils.with_lock
 async def deposit(ctx, amount: int):
     if amount <= 0:
         await ctx.send("❌ 存入金額必須大於 0", ephemeral=True)
@@ -1069,13 +1032,13 @@ async def deposit(ctx, amount: int):
     uid_str = str(ctx.author.id)
 
     try:
-        with open(COIN_FILE, 'r') as f:
+        with open(utils.COIN_FILE, 'r') as f:
             coin_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         coin_data = {}
 
     try:
-        with open(FIXED_DEPOSIT_FILE, 'r') as f:
+        with open(utils.FIXED_DEPOSIT_FILE, 'r') as f:
             bank_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         bank_data = {}
@@ -1084,8 +1047,8 @@ async def deposit(ctx, amount: int):
     user_bank = bank_data.get(uid_str, {"principal": 0, "start_time": 0})
 
     if user_bank["principal"] > 0:
-        maturity_time = datetime.datetime.fromtimestamp(user_bank["start_time"], TAIPEI_TZ) + datetime.timedelta(days=7)
-        if get_now() < maturity_time:
+        maturity_time = datetime.datetime.fromtimestamp(user_bank["start_time"], utils.TAIPEI_TZ) + datetime.timedelta(days=7)
+        if utils.get_now() < maturity_time:
             await ctx.send(f"❌ 你已經有一筆定存正在進行中，請等期滿提領後再存入更多。", ephemeral=True)
             return
 
@@ -1094,30 +1057,30 @@ async def deposit(ctx, amount: int):
         return
 
     total_wealth = current_balance + user_bank["principal"]
-    max_deposit = int(total_wealth * FIXED_DEPOSIT_RATIO_LIMIT)
+    max_deposit = int(total_wealth * utils.FIXED_DEPOSIT_RATIO_LIMIT)
     
     if (user_bank["principal"] + amount) > max_deposit:
         await ctx.send(f"❌ 銀行存款上限為總資產的 30% ({max_deposit} 幣)，你目前最多只能再存 {max_deposit - user_bank['principal']} 幣。", ephemeral=True)
         return
 
-    update_user_coins(ctx.author.id, -amount)
+    utils.update_user_coins(ctx.author.id, -amount)
     bank_data[uid_str] = {
         "principal": user_bank["principal"] + amount,
-        "start_time": get_now().timestamp()
+        "start_time": utils.get_now().timestamp()
     }
 
-    with open(FIXED_DEPOSIT_FILE, 'w') as f:
+    with open(utils.FIXED_DEPOSIT_FILE, 'w') as f:
         json.dump(bank_data, f)
 
     await ctx.send(f"🏦 成功存入 **{amount}** 幣！新一輪定存開始，預計一週後可領取利息。", ephemeral=True)
 
 @client.hybrid_command(name='withdraw', description='提領定存本金與利息 (需期滿 7 天)')
-@with_lock
+@utils.with_lock
 async def withdraw(ctx):
     uid_str = str(ctx.author.id)
 
     try:
-        with open(FIXED_DEPOSIT_FILE, 'r') as f:
+        with open(utils.FIXED_DEPOSIT_FILE, 'r') as f:
             bank_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         await ctx.send("❌ 你在銀行沒有存款。", ephemeral=True)
@@ -1128,76 +1091,76 @@ async def withdraw(ctx):
         await ctx.send("❌ 你在銀行沒有存款。", ephemeral=True)
         return
 
-    maturity_time = datetime.datetime.fromtimestamp(user_bank["start_time"], TAIPEI_TZ) + datetime.timedelta(days=7)
-    if get_now() < maturity_time:
-        delta = maturity_time - get_now()
+    maturity_time = datetime.datetime.fromtimestamp(user_bank["start_time"], utils.TAIPEI_TZ) + datetime.timedelta(days=7)
+    if utils.get_now() < maturity_time:
+        delta = maturity_time - utils.get_now()
         await ctx.send(f"⏳ 定存尚未到期！還需等待 {delta.days}天 {delta.seconds // 3600}小時。", ephemeral=True)
         return
 
     principal = user_bank["principal"]
-    interest = int(principal * FIXED_DEPOSIT_INTEREST)
+    interest = int(principal * utils.FIXED_DEPOSIT_INTEREST)
     total = principal + interest
 
-    new_balance = update_user_coins(ctx.author.id, total)
+    new_balance = utils.update_user_coins(ctx.author.id, total)
 
     bank_data[uid_str] = {"principal": 0, "start_time": 0}
-    with open(FIXED_DEPOSIT_FILE, 'w') as f:
+    with open(utils.FIXED_DEPOSIT_FILE, 'w') as f:
         json.dump(bank_data, f)
 
     await ctx.send(f"💰 恭喜！你領回了本金 {principal} 幣以及利息 {interest} 幣，共計 **{total}** 幣！(目前身上: {new_balance})", ephemeral=True)
 
-@client.hybrid_command(name='lotto', description=f'購買大樂透彩券！從 1~{LOTTO_MAX_NUM} 選一個數字 (每張 {LOTTO_PRICE} 幣)')
-@with_lock
+@client.hybrid_command(name='lotto', description=f'購買大樂透彩券！從 1~100 選一個數字')
+@utils.with_lock
 async def lotto(ctx, number: int):
-    if number < 1 or number > LOTTO_MAX_NUM:
-        await ctx.send(f"❌ 號碼必須在 1 到 {LOTTO_MAX_NUM} 之間！", ephemeral=True)
+    if number < 1 or number > utils.LOTTO_MAX_NUM:
+        await ctx.send(f"❌ 號碼必須在 1 到 {utils.LOTTO_MAX_NUM} 之間！", ephemeral=True)
         return
 
     uid_str = str(ctx.author.id)
     
     try:
-        with open(COIN_FILE, 'r') as f:
+        with open(utils.COIN_FILE, 'r') as f:
             coin_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         coin_data = {}
         
     current_balance = coin_data.get(uid_str, 0)
-    if current_balance < LOTTO_PRICE:
-        await ctx.send(f"❌ 餘額不足！買一張彩券需要 {LOTTO_PRICE} 幣，你只有 {current_balance} 幣。", ephemeral=True)
+    if current_balance < utils.LOTTO_PRICE:
+        await ctx.send(f"❌ 餘額不足！買一張彩券需要 {utils.LOTTO_PRICE} 幣，你只有 {current_balance} 幣。", ephemeral=True)
         return
 
-    lotto_data = get_lotto_data()
+    lotto_data = utils.get_lotto_data()
     
     if uid_str not in lotto_data["tickets"]:
         lotto_data["tickets"][uid_str] = []
         
-    if len(lotto_data["tickets"][uid_str]) >= LOTTO_MAX_TICKETS:
-        await ctx.send(f"❌ 你今天已經買了 {LOTTO_MAX_TICKETS} 張彩券了，留點機會給別人吧！", ephemeral=True)
+    if len(lotto_data["tickets"][uid_str]) >= utils.LOTTO_MAX_TICKETS:
+        await ctx.send(f"❌ 你今天已經買了 {utils.LOTTO_MAX_TICKETS} 張彩券了，留點機會給別人吧！", ephemeral=True)
         return
         
     if number in lotto_data["tickets"][uid_str]:
         await ctx.send(f"❌ 你已經買過 **{number}** 號了，換個幸運數字吧！", ephemeral=True)
         return
 
-    new_balance = update_user_coins(ctx.author.id, -LOTTO_PRICE)
+    new_balance = utils.update_user_coins(ctx.author.id, -utils.LOTTO_PRICE)
     lotto_data["tickets"][uid_str].append(number)
-    lotto_data["pot"] += LOTTO_TO_POT
-    save_lotto_data(lotto_data)
+    lotto_data["pot"] += utils.LOTTO_TO_POT
+    utils.save_lotto_data(lotto_data)
     
     await ctx.send(f"🎟️ 購買成功！你選擇了號碼 **{number}**。目前獎金池累積高達 **{lotto_data['pot']}** 幣！(剩餘餘額: {new_balance})")
 
-@tasks.loop(time=datetime.time(hour=21, tzinfo=TAIPEI_TZ))
-@with_lock
+@tasks.loop(time=datetime.time(hour=21, tzinfo=utils.TAIPEI_TZ))
+@utils.with_lock
 async def daily_lotto_draw():
     channel = client.get_channel(461180385972322306) 
     if channel is None:
         return
 
-    lotto_data = get_lotto_data()
+    lotto_data = utils.get_lotto_data()
     pot = lotto_data["pot"]
     tickets = lotto_data["tickets"]
     
-    winning_number = random.randint(1, LOTTO_MAX_NUM)
+    winning_number = random.randint(1, utils.LOTTO_MAX_NUM)
     
     await channel.send(f"🎰 **【每日大樂透開獎】** 🎰\n緊張刺激的時刻來了！今晚的 Jackpot 總獎金高達 **{pot}** 折成幣！\n*正在抽出幸運號碼...*")
     await asyncio.sleep(3) # 製造懸念
@@ -1212,7 +1175,7 @@ async def daily_lotto_draw():
         winner_mentions = ", ".join([f"<@{uid}>" for uid in winners])
         
         for uid in winners:
-            update_user_coins(int(uid), prize_per_person)
+            utils.update_user_coins(int(uid), prize_per_person)
             
         await channel.send(f"🎉 **開獎號碼是：【 {winning_number} 】！** 🎉\n恭喜 {winner_mentions} 猜中號碼！每人分得 **{prize_per_person}** 幣，一夜暴富啦！")
         
@@ -1221,11 +1184,11 @@ async def daily_lotto_draw():
         await channel.send(f"💥 **開獎號碼是：【 {winning_number} 】！** 💥\n很遺憾，今天**沒有任何人**猜中！\n💸 這 **{pot}** 幣將全數滾入明天的獎金池，請大家明天繼續努力！")
     
     lotto_data["tickets"] = {}
-    save_lotto_data(lotto_data)
+    utils.save_lotto_data(lotto_data)
 
 @client.hybrid_command(name='lottopot', description='查看目前大樂透累積的總獎金池！')
 async def lottopot(ctx):
-    lotto_data = get_lotto_data()
+    lotto_data = utils.get_lotto_data()
     current_pot = lotto_data.get("pot", 0)
     
     if current_pot > 0:
