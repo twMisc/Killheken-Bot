@@ -248,11 +248,17 @@ class GachaCog(commands.Cog):
 
         elif item_code == "sr_robin_hood":
             # 找出首富
-            with open(utils.COIN_FILE, 'r') as f:
-                all_coins = json.load(f)
+            try:
+                with open(utils.COIN_FILE, 'r') as f:
+                    all_coins = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                all_coins = {}
+
+            if not all_coins:
+                return await ctx.send("❌ 目前沒有任何資產資料，無法發動 `劫富濟貧`。", ephemeral=True)
+
             richest_id = max(all_coins, key=all_coins.get)
             richest_balance = all_coins[richest_id]
-            
             if random.random() < 0.30:
                 amount = max(1, int(richest_balance * 0.01))
                 utils.update_user_coins(int(richest_id), -amount)
