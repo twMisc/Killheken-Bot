@@ -601,6 +601,7 @@ async def gamble(ctx, amount: int):
     buffs = utils.get_buffs(ctx.author.id)
     if buffs.get("gamble_ban_until", 0) > utils.get_now().timestamp():
         await ctx.send("🚫 你身上還有 `禁賭令`！目前被拒絕進入賭場。", ephemeral=True)
+        ctx.command.reset_cooldown(ctx)
         return
     
     if amount <= 0:
