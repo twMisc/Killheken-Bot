@@ -342,10 +342,10 @@ class GachaCog(commands.Cog):
             richest_balance = valid_targets[richest_id]
             
             if random.random() < 0.30:
-                amount = max(1, int(richest_balance * 0.01))
-                utils.update_user_coins(int(richest_id), -amount)
-                utils.update_user_coins(user_id, amount)
-                await ctx.send(f"🏹 義賊現身！你成功對最大肥羊 <@{richest_id}> 發動了 `劫富濟貧`，強行奪走 **{amount}** 幣！")
+                amount_stolen = max(1, int(richest_balance * 0.01))
+                utils.update_user_coins(int(richest_id), -amount_stolen)
+                utils.update_user_coins(user_id, amount_stolen)
+                await ctx.send(f"🏹 義賊現身！你成功對最大肥羊 <@{richest_id}> 發動了 `劫富濟貧`，強行奪走 **{amount_stolen}** 幣！")
             else:
                 await ctx.send(f"💨 劫富濟貧失敗！肥羊 <@{richest_id}> 的保鑣把你趕了出去。")
 
