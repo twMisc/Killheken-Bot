@@ -149,7 +149,7 @@ class GachaCog(commands.Cog):
     @utils.with_lock
     async def inventory(self, ctx):
         inventory = utils.get_inventory(ctx.author.id)
-        embed = discord.Embed(title=f"🎒 <@{ctx.author.id}> 的背包", color=discord.Color.green())
+        embed = discord.Embed(title=f"🎒 {ctx.author.display_name} 的背包", color=discord.Color.green())
         
         passive_s_text = ""
         achievement_p_text = ""
