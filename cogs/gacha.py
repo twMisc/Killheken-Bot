@@ -177,9 +177,7 @@ class GachaCog(commands.Cog):
         
         await ctx.send(embed=embed, ephemeral=True)
 
-    @commands.hybrid_command(name='use', description='使用背包裡的消耗型 S 卡道具')
-    @utils.with_lock
-@commands.hybrid_command(name='use', description='使用背包裡的消耗型 S 卡道具 (可輸入中文或代號)')
+    @commands.hybrid_command(name='use', description='使用背包裡的消耗型 S 卡道具 (可輸入中文或代號)')
     @utils.with_lock
     async def use_item(self, ctx, item_input: str, target: discord.Member = None):
         user_id = ctx.author.id
