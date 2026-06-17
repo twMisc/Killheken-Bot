@@ -874,20 +874,17 @@ async def steal(ctx, member: discord.Member):
     if is_success:
         # 成功偷到，但要檢查目標有沒有掛載「次數型護盾」
         target_buffs = utils.get_buffs(member.id)
+            
         if target_buffs.get("steal_shield_stacks", 0) > 0:
             # 扣除護盾層數
             target_buffs["steal_shield_stacks"] -= 1
             utils.save_buffs(member.id, target_buffs)
             
-            # 攻擊者被護盾彈開，依然要賠錢
-            if penalty > 0:
-                utils.update_user_coins(member.id, penalty)
-                new_balance = utils.update_user_coins(ctx.author.id, -penalty)
-            else:
-                new_balance = attacker_balance
+            # 攻擊者被護盾彈開，免除罰金 (餘額不變)
+            new_balance = attacker_balance
                 
-            await ctx.send(f"💥 <@{ctx.author.id}> 試圖偷竊，但撞上了 {member.mention} 的 🛡️**次數型護盾**！護盾破裂 1 層，你被震飛並損失了 **{penalty}** 枚折成幣。(目前總計: {new_balance} 幣)")
-            
+            await ctx.send(f"💥 <@{ctx.author.id}> 試圖偷竊，但撞上了 {member.mention} 的 🛡️**次數型護盾**！護盾破裂 1 層，你被狠狠地彈飛了，但幸運的是沒有掉任何錢。(目前總計: {new_balance} 幣)")
+
             # 即使被護盾擋下，依然算作使用了今日的偷竊次數
             steal_data["claimed_users"].append(user_id)
             with open(utils.STEAL_FILE, 'w') as f:

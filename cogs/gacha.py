@@ -272,14 +272,25 @@ class GachaCog(commands.Cog):
             if not target: return await ctx.send("❌ 此道具需指定 @對象！", ephemeral=True)
             target_balance = utils.update_user_coins(target.id, 0)
             fake_amount = int(target_balance * 0.5)
-            await ctx.send(f"🥷 <@{user_id}> 趁著 {target.mention} 不注意，偷偷摸走了 **{fake_amount}** 枚折成幣！(目前總計: 99999999 幣)")
+            
+            target_buffs = utils.get_buffs(target.id)
+            shield_broken = False
+            if target_buffs.get("steal_shield_stacks", 0) > 0:
+                target_buffs["steal_shield_stacks"] = 0 # 瞬間歸零
+                utils.save_buffs(target.id, target_buffs)
+                shield_broken = True
+                
+            msg = f"🥷 <@{user_id}> 趁著 {target.mention} 不注意，偷偷摸走了 **{fake_amount}** 枚折成幣！(目前總計: 99999999 幣)"
+            if shield_broken:
+                msg += "\n💥 **【破甲效果】** 突如其來的驚嚇讓對方跌了個狗吃屎，他身上的 🛡️`次數型護盾` 瞬間全部碎裂了！"
+                
+            await ctx.send(msg)
 
         # ---------------- SR卡: 戰術道具 ----------------
         elif item_code == "sr_steal_shield":
-            current_stacks = buffs.get("steal_shield_stacks", 0)
-            buffs["steal_shield_stacks"] = min(current_stacks + 1, 3)
+            buffs["steal_shield_stacks"] = 1
             utils.save_buffs(user_id, buffs)
-            await ctx.send(f"🛡️ 你裝備了 `次數型護盾`！目前護盾層數: {buffs['steal_shield_stacks']}/3")
+            await ctx.send("🛡️ 你裝備了 `次數型護盾`！(目前上限: 1 層。請注意：再次使用不會疊加)")
 
         elif item_code == "sr_tax_audit":
             if not target: 
