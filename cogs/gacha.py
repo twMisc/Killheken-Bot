@@ -304,9 +304,13 @@ class GachaCog(commands.Cog):
 
         # ---------------- SR卡: 戰術道具 ----------------
         elif item_code == "sr_steal_shield":
+            if buffs.get("steal_shield_stacks", 0) > 0:
+                await ctx.send("❌ 你身上已經有一層 `次數型護盾` 了，無法重複裝備！", ephemeral=True)
+                return
+                
             buffs["steal_shield_stacks"] = 1
             utils.save_buffs(user_id, buffs)
-            await ctx.send("🛡️ 你裝備了 `次數型護盾`！(目前上限: 1 層。請注意：再次使用不會疊加)")
+            await ctx.send("🛡️ 你裝備了 `次數型護盾`！(目前上限: 1 層。請注意：被擊破前無法重複使用)")
 
         elif item_code == "sr_tax_audit":
             if not target: 
@@ -350,6 +354,10 @@ class GachaCog(commands.Cog):
                 await ctx.send(f"💨 劫富濟貧失敗！肥羊 <@{richest_id}> 的保鑣把你趕了出去。")
 
         elif item_code == "sr_gamble_insurance":
+            if buffs.get("gamble_insurance", 0) > 0:
+                await ctx.send("❌ 你已經簽署過 `賭場保險` 了，在觸發理賠前無法重複簽署！", ephemeral=True)
+                return
+                
             buffs["gamble_insurance"] = 1
             utils.save_buffs(user_id, buffs)
             await ctx.send("📑 你簽署了 `賭場保險`！下一次輸錢時，最高可獲賠 1,000,000 幣。")
