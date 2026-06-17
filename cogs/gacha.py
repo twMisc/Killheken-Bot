@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 import random
 import json
 import os
@@ -177,7 +178,28 @@ class GachaCog(commands.Cog):
         
         await ctx.send(embed=embed, ephemeral=True)
 
+    async def item_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+        user_id = interaction.user.id
+        inventory = utils.get_inventory(user_id)
+        
+        choices = []
+        # 只列出玩家真正擁有，且數量大於 0 的消耗品
+        for item_code, count in inventory["consumables"].items():
+            if count > 0:
+                display_name = ITEM_NAMES.get(item_code, item_code)
+                # 貼心設計：在選單上直接顯示擁有數量
+                name_with_count = f"{display_name} (擁有: {count}個)"
+                
+                # 如果玩家有打字，進行過濾篩選；如果沒打字，就全列出來
+                if current.lower() in name_with_count.lower() or current.lower() in item_code.lower():
+                    # name 是顯示給玩家看的文字，value 是實際傳給程式的變數 (也就是 item_code)
+                    choices.append(app_commands.Choice(name=name_with_count, value=item_code))
+        
+        # Discord 限制自動完成選單最多只能回傳 25 個選項
+        return choices[:25]
+
     @commands.hybrid_command(name='use', description='使用背包裡的消耗型 S 卡道具 (可輸入中文或代號)')
+    @app_commands.autocomplete(item_input=item_autocomplete)
     @utils.with_lock
     async def use_item(self, ctx, item_input: str, target: discord.Member = None):
         user_id = ctx.author.id
