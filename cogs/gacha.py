@@ -179,17 +179,49 @@ class GachaCog(commands.Cog):
 
     @commands.hybrid_command(name='use', description='使用背包裡的消耗型 S 卡道具')
     @utils.with_lock
-    async def use_item(self, ctx, item_code: str, target: discord.Member = None):
+@commands.hybrid_command(name='use', description='使用背包裡的消耗型 S 卡道具 (可輸入中文或代號)')
+    @utils.with_lock
+    async def use_item(self, ctx, item_input: str, target: discord.Member = None):
         user_id = ctx.author.id
-        inventory = utils.get_inventory(user_id)
         
+        # 1. 嘗試解析玩家輸入的是代號還是中文名稱
+        item_code = None
+        user_input = item_input.strip()
+        
+        for code, display_name in ITEM_NAMES.items():
+            # 狀況 A: 玩家輸入了精確的英文代號 (例如: sr_tax_audit)
+            if user_input == code:
+                item_code = code
+                break
+                
+            # 狀況 B: 玩家複製了完整的顯示名稱 (例如: 🔥 強制查水表)
+            if user_input == display_name:
+                item_code = code
+                break
+                
+            # 狀況 C: 玩家只打了純中文名稱 (例如: 強制查水表)
+            # 透過分割第一個空白來去掉前面的 Emoji
+            name_parts = display_name.split(" ", 1)
+            clean_name = name_parts[-1].strip() if len(name_parts) > 1 else display_name
+            if user_input == clean_name:
+                item_code = code
+                break
+                
+        # 如果找了一圈都找不到對應的代號
+        if not item_code:
+            await ctx.send(f"❌ 系統辨識不出道具：`{item_input}`！請檢查有沒有打錯字。", ephemeral=True)
+            return
+
+        # 2. 檢查玩家背包是否真的有這個道具
+        inventory = utils.get_inventory(user_id)
         if inventory["consumables"].get(item_code, 0) <= 0:
-            await ctx.send(f"❌ 你沒有這個道具：`{item_code}`！(請使用 /inventory 查看正確代號)", ephemeral=True)
+            clean_display_name = ITEM_NAMES.get(item_code, item_code)
+            await ctx.send(f"❌ 你的背包裡沒有 {clean_display_name}！", ephemeral=True)
             return
 
         today_str = utils.get_now().strftime('%Y-%m-%d')
         buffs = utils.get_buffs(user_id)
-
+        
         # ---------------- R卡: 經濟與惡搞 ----------------
         if item_code == "r_coin_bag":
             reward = random.randint(5000, 10000)
