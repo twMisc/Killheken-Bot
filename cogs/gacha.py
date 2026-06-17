@@ -201,9 +201,13 @@ class GachaCog(commands.Cog):
     @commands.hybrid_command(name='use', description='使用背包裡的消耗型 S 卡道具 (可輸入中文或代號)')
     @app_commands.autocomplete(item_input=item_autocomplete)
     @utils.with_lock
-    async def use_item(self, ctx, item_input: str, target: discord.Member = None):
-        user_id = ctx.author.id
-        
+    async def use_item(self, ctx, item_input: str, amount: int = 1, target: discord.Member = None):
+        if amount < 1:
+            await ctx.send("❌ 使用數量必須大於 0！", ephemeral=True)
+            return
+            
+        user_id = ctx.author.id        
+
         # 1. 嘗試解析玩家輸入的是代號還是中文名稱
         item_code = None
         user_input = item_input.strip()
@@ -232,21 +236,33 @@ class GachaCog(commands.Cog):
             await ctx.send(f"❌ 系統辨識不出道具：`{item_input}`！請檢查有沒有打錯字。", ephemeral=True)
             return
 
-        # 2. 檢查玩家背包是否真的有這個道具
+        # 2. 檢查玩家背包是否真的有這個道具與足夠的數量
         inventory = utils.get_inventory(user_id)
-        if inventory["consumables"].get(item_code, 0) <= 0:
+        current_count = inventory["consumables"].get(item_code, 0)
+        
+        if current_count < amount:
             clean_display_name = ITEM_NAMES.get(item_code, item_code)
-            await ctx.send(f"❌ 你的背包裡沒有 {clean_display_name}！", ephemeral=True)
+            await ctx.send(f"❌ 你的背包裡沒有足夠的 {clean_display_name}！(擁有: {current_count} 個，欲使用: {amount} 個)", ephemeral=True)
             return
 
-        today_str = utils.get_now().strftime('%Y-%m-%d')
+        # 3. 限制防呆：目前只有現金包支援一次開多個
+        if amount > 1 and item_code != "r_coin_bag":
+            await ctx.send("❌ 這個道具目前不支援一次使用多個！請一次使用 1 個。", ephemeral=True)
+            return
+
+        today_str = utils.get_now().strftime('%Y-%m-%d')        
         buffs = utils.get_buffs(user_id)
         
         # ---------------- R卡: 經濟與惡搞 ----------------
         if item_code == "r_coin_bag":
-            reward = random.randint(5000, 10000)
-            utils.update_user_coins(user_id, reward)
-            await ctx.send(f"💰 你打開了 `現金包`，獲得了 **{reward}** 枚折成幣！")
+            # 迴圈加總所有現金包的隨機金額
+            total_reward = sum(random.randint(5000, 10000) for _ in range(amount))
+            utils.update_user_coins(user_id, total_reward)
+            
+            if amount > 1:
+                await ctx.send(f"💰 你一口氣打開了 **{amount}** 個 `現金包`，總共獲得了 **{total_reward}** 枚折成幣！")
+            else:
+                await ctx.send(f"💰 你打開了 `現金包`，獲得了 **{total_reward}** 枚折成幣！")
 
         elif item_code == "r_gamble_ban":
             if not target: return await ctx.send("❌ 此道具需指定 @對象！", ephemeral=True)
@@ -350,8 +366,8 @@ class GachaCog(commands.Cog):
             await ctx.send("❌ 此道具暫時無法使用或代號錯誤。", ephemeral=True)
             return
 
-        # 扣除道具
-        inventory["consumables"][item_code] -= 1
+        # 扣除道具 (支援一次扣除多個)
+        inventory["consumables"][item_code] -= amount
         utils.save_inventory(user_id, inventory)
 
 async def setup(bot):
