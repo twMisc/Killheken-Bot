@@ -40,9 +40,8 @@ try:
     with open('p_cards.json', 'r', encoding='utf-8') as f:
         p_card_names = json.load(f)
         ITEM_NAMES.update(p_card_names)
-except FileNotFoundError:
-    print("Warning: p_cards.json not found. P-cards will show default names.")
-
+except (FileNotFoundError, json.JSONDecodeError) as e:
+    print(f"Warning: failed to load p_cards.json ({e}). P-cards will show default names.")
 
 class GachaCog(commands.Cog):
     def __init__(self, bot):
@@ -106,13 +105,13 @@ class GachaCog(commands.Cog):
             results.append((item, rarity, is_p_card))
 
             if is_p_card:
-                inventory["passives"][item] = 1 # 成就只要獲得就紀錄為 1
+                inventory["passives"][item] = inventory["passives"].get(item, 0) + 1
                 
                 # 如果是 SSR 或 SR 的 P 卡，準備附加圖片
                 if rarity in ["SSR", "SR"]:
-                    image_path = f"images/{item}.webp" # 根據代號抓圖檔，例如 images/p_101.webp
+                    image_path = f"images/{item}.webp"
                     if os.path.exists(image_path):
-                        files_to_send.append(discord.File(image_path, filename=f"{item}.webp"))
+                        files_to_send.append(discord.File(image_path, filename=f"{item}_{i}.webp"))
             else:
                 if rarity == "SSR":
                     current_level = inventory["passives"].get(item, 0)
@@ -147,22 +146,21 @@ class GachaCog(commands.Cog):
             await ctx.send(embed=embed)
 
     @commands.hybrid_command(name='inventory', description='查看你的收集品與道具背包')
+    @utils.with_lock
     async def inventory(self, ctx):
         inventory = utils.get_inventory(ctx.author.id)
         embed = discord.Embed(title=f"🎒 <@{ctx.author.id}> 的背包", color=discord.Color.green())
         
-        # 分離出 S 卡被動與 P 卡成就
         passive_s_text = ""
         achievement_p_text = ""
         
-        for item, level in inventory["passives"].items():
-            if item.startswith("s_"):
-                pass
-            
-            if item in P_CARDS["SSR"] or item in P_CARDS["SR"] or item in P_CARDS["R"]:
-                achievement_p_text += f"🏆 **{ITEM_NAMES.get(item, '🔒 [未知]')}**\n"
+        for item, count_or_level in inventory["passives"].items():            
+            if item.startswith("p_"):
+                # P 卡顯示為成就與收集到的總次數
+                achievement_p_text += f"🏆 **{ITEM_NAMES.get(item, '🔒 [未知]')}** (x{count_or_level})\n"
             else:
-                passive_s_text += f"**{ITEM_NAMES.get(item, item)}** (Lv.{level}/5)\n"
+                # S 卡顯示為等級
+                passive_s_text += f"**{ITEM_NAMES.get(item, item)}** (Lv.{count_or_level}/5)\n"
                 
         if not passive_s_text: passive_s_text = "空空如也..."
         if not achievement_p_text: achievement_p_text = "空空如也..."
@@ -207,6 +205,7 @@ class GachaCog(commands.Cog):
 
         elif item_code == "r_purify_debuff":
             buffs["gamble_ban_until"] = 0
+            buffs["emoji_curse_stacks"] = 0
             utils.save_buffs(user_id, buffs)
             await ctx.send("✨ 你使用了 `撤銷公文`，清除了身上所有的負面狀態！")
 
@@ -231,32 +230,45 @@ class GachaCog(commands.Cog):
             await ctx.send(f"🛡️ 你裝備了 `次數型護盾`！目前護盾層數: {buffs['steal_shield_stacks']}/3")
 
         elif item_code == "sr_tax_audit":
-            if not target: return await ctx.send("❌ 此道具需指定 @對象！", ephemeral=True)
-            if buffs.get("tax_audit_date") == today_str:
-                return await ctx.send("❌ 你今天已經發動過查水表了！明天的公文還沒批下來。", ephemeral=True)
+            if not target: 
+                return await ctx.send("❌ 此道具需指定 @對象！", ephemeral=True)
+            
+            audit_history = buffs.get("tax_audits", {})
+            if audit_history.get(str(target.id)) == today_str:
+                return await ctx.send("❌ 你今天已經查過他的水表了！", ephemeral=True)            
             
             target_balance = utils.update_user_coins(target.id, 0)
             damage = int(target_balance * 0.02)
             if damage > 0:
                 utils.update_user_coins(target.id, -damage)
-            buffs["tax_audit_date"] = today_str
+            audit_history[str(target.id)] = today_str
+            buffs["tax_audits"] = audit_history
             utils.save_buffs(user_id, buffs)
             await ctx.send(f"🔥 國稅局出動！{target.mention} 遭到了 `強制查水表`，**{damage}** 枚折成幣瞬間被依法銷毀！")
 
         elif item_code == "sr_robin_hood":
-            # 找出首富
-            with open(utils.COIN_FILE, 'r') as f:
-                all_coins = json.load(f)
-            richest_id = max(all_coins, key=all_coins.get)
-            richest_balance = all_coins[richest_id]
+            try:
+                with open(utils.COIN_FILE, 'r') as f:
+                    all_coins = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                all_coins = {}
+            
+            # 過濾掉 0 元窮光蛋以及使用者自己
+            valid_targets = {k: v for k, v in all_coins.items() if v > 0 and k != str(user_id)}
+            
+            if not valid_targets:
+                return await ctx.send("❌ 目前伺服器除了你之外，沒有任何有錢的肥羊可以劫！", ephemeral=True)
+            
+            richest_id = max(valid_targets, key=valid_targets.get)
+            richest_balance = valid_targets[richest_id]
             
             if random.random() < 0.30:
                 amount = max(1, int(richest_balance * 0.01))
                 utils.update_user_coins(int(richest_id), -amount)
                 utils.update_user_coins(user_id, amount)
-                await ctx.send(f"🏹 義賊現身！你成功對首富 <@{richest_id}> 發動了 `劫富濟貧`，強行奪走 **{amount}** 幣！")
+                await ctx.send(f"🏹 義賊現身！你成功對最大肥羊 <@{richest_id}> 發動了 `劫富濟貧`，強行奪走 **{amount}** 幣！")
             else:
-                await ctx.send(f"💨 劫富濟貧失敗！首富 <@{richest_id}> 的保鑣把你趕了出去。")
+                await ctx.send(f"💨 劫富濟貧失敗！肥羊 <@{richest_id}> 的保鑣把你趕了出去。")
 
         elif item_code == "sr_gamble_insurance":
             buffs["gamble_insurance"] = 1
@@ -264,6 +276,9 @@ class GachaCog(commands.Cog):
             await ctx.send("📑 你簽署了 `賭場保險`！下一次輸錢時，最高可獲賠 1,000,000 幣。")
 
         elif item_code == "sr_lotto_boost":
+            if buffs.get("lotto_boost_date") == today_str:
+                await ctx.send("❌ 你今天已經使用過 `破例下注` 了！", ephemeral=True)
+                return
             buffs["lotto_boost_date"] = today_str
             utils.save_buffs(user_id, buffs)
             await ctx.send("🎫 你啟動了 `破例下注`！今天你的大樂透購買上限已解除 (可額外購買 3 張)。")

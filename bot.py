@@ -453,24 +453,25 @@ async def on_message(message):
         return
 
     # 攔截並觸發主管的凝視 Buff
-    user_buffs = utils.get_buffs(message.author.id)
-    if user_buffs.get("emoji_curse_stacks", 0) > 0:
-        emojis_to_add = ["🤡", "👀", "👎"]
-        try:
-            await message.add_reaction(random.choice(emojis_to_add))
-        except:
-            pass
-        user_buffs["emoji_curse_stacks"] -= 1
-        utils.save_buffs(message.author.id, user_buffs)    
+    async with utils.data_lock: # We should only lock when we're actually reading/modifying the files.
+        user_buffs = utils.get_buffs(message.author.id)
+        if user_buffs.get("emoji_curse_stacks", 0) > 0:
+            emojis_to_add = ["🤡", "👀", "👎"]
+            try:
+                await message.add_reaction(random.choice(emojis_to_add))
+            except:
+                pass
+            user_buffs["emoji_curse_stacks"] -= 1
+            utils.save_buffs(message.author.id, user_buffs)    
     
-    if message.author.id == 424569079278338059:
-        for ej, count in SKULL_COUNT.items():
-            if ej in message.content:
-                count = count + 1
-                SKULL_COUNT[ej] = count
-                with open('skull_count.json', 'w') as f:
-                    json.dump(SKULL_COUNT, f)
-                await message.channel.send(f"哲誠已經{ej}了{count}次")
+        if message.author.id == 424569079278338059:
+            for ej, count in SKULL_COUNT.items():
+                if ej in message.content:
+                    count = count + 1
+                    SKULL_COUNT[ej] = count
+                    with open('skull_count.json', 'w') as f:
+                        json.dump(SKULL_COUNT, f)
+                    await message.channel.send(f"哲誠已經{ej}了{count}次")
 
     if message.content.startswith("誠"):
         REPLY_RATE = get_rate()
@@ -1109,7 +1110,7 @@ async def withdraw(ctx):
 
     await ctx.send(f"💰 恭喜！你領回了本金 {principal} 幣以及利息 {interest} 幣，共計 **{total}** 幣！(目前身上: {new_balance})", ephemeral=True)
 
-@client.hybrid_command(name='lotto', description=f'購買大樂透彩券！從 1~100 選一個數字')
+@client.hybrid_command(name='lotto', description=f'購買大樂透彩券！從 1~{utils.LOTTO_MAX_NUM} 選一個數字 (每張 {utils.LOTTO_PRICE} 幣)')
 @utils.with_lock
 async def lotto(ctx, number: int):
     if number < 1 or number > utils.LOTTO_MAX_NUM:
@@ -1133,11 +1134,14 @@ async def lotto(ctx, number: int):
     
     if uid_str not in lotto_data["tickets"]:
         lotto_data["tickets"][uid_str] = []
-        
-    if len(lotto_data["tickets"][uid_str]) >= utils.LOTTO_MAX_TICKETS:
-        await ctx.send(f"❌ 你今天已經買了 {utils.LOTTO_MAX_TICKETS} 張彩券了，留點機會給別人吧！", ephemeral=True)
+
+    buffs = utils.get_buffs(ctx.author.id)
+    today_str = utils.get_now().strftime('%Y-%m-%d')
+    max_tickets = utils.LOTTO_MAX_TICKETS + (3 if buffs.get("lotto_boost_date") == today_str else 0)        
+    if len(lotto_data["tickets"][uid_str]) >= max_tickets:
+        await ctx.send(f"❌ 你今天已經買了 {max_tickets} 張彩券了，留點機會給別人吧！", ephemeral=True)
         return
-        
+
     if number in lotto_data["tickets"][uid_str]:
         await ctx.send(f"❌ 你已經買過 **{number}** 號了，換個幸運數字吧！", ephemeral=True)
         return

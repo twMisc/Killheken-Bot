@@ -140,9 +140,14 @@ def get_inventory(user_id):
     try:
         with open(INVENTORY_FILE, 'r') as f:
             data = json.load(f)
-            return data.get(str(user_id), {"passives": {}, "consumables": {}})
+            inv = data.get(str(user_id), {})
     except (FileNotFoundError, json.JSONDecodeError):
-        return {"passives": {}, "consumables": {}}
+        inv = {}
+    
+    # 使用 setdefault 確保 key 存在
+    inv.setdefault("passives", {})
+    inv.setdefault("consumables", {})
+    return inv
 
 def save_inventory(user_id, user_inv):
     try:
